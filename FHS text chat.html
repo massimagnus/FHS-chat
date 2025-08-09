@@ -3,55 +3,86 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat — menu + specchio + storia + quit (delegation+checks)</title>
+<title>P2P Chat — menu + specchio + storia + quit (512×800 + fix setScreen)</title>
 <style>
-  :root{--bg:#0a0a0a;--card:#e5ddd5;--bar:#f8fafc;--line:#e5e7eb;--me:#d1f1c9;--peer:#ffffff;--me-old:#b6d9ae;--peer-old:#e6e6e6;--muted:#6b7280;--danger:#ef4444;--warn:#f59e0b;--ok:#22c55e}
-  *{box-sizing:border-box}html,body{height:100%}
-  body{margin:0;background:var(--bg);display:grid;place-items:center;padding:1rem;color:#111827;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  #app{width:640px;height:640px;background:var(--card);border:1px solid #d6d3d1;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.15);overflow:hidden;position:relative}
+  :root{
+    --bg:#0a0a0a; --card:#e5ddd5; --bar:#f8fafc; --line:#e5e7eb;
+    --me:#d1f1c9; --peer:#ffffff; --me-old:#b6d9ae; --peer-old:#e6e6e6;
+    --muted:#6b7280; --danger:#ef4444; --warn:#f59e0b; --ok:#22c55e;
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);display:grid;place-items:center;
+    padding:1rem;color:#111827;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif
+  }
+  /* DIMENSIONI FISSE RICHIESTE */
+  #app{
+    width:512px;height:800px;background:var(--card);border:1px solid #d6d3d1;
+    border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.15);overflow:hidden;position:relative
+  }
   .screen{position:absolute;inset:0;display:none}.screen.active{display:grid}
+
+  /* Setup */
   #setup{grid-template-rows:auto 1fr auto;background:#111;color:#fff}
   #setup header{padding:.8rem .9rem;background:#000;border-bottom:1px solid #222;display:flex;justify-content:space-between;align-items:center}
   #setup main{display:grid;place-items:center;padding:1rem}
-  #setup .panel{width:88%;max-width:520px;background:#141414;border:1px solid #222;border-radius:12px;padding:1rem}
-  .row{display:flex;gap:.6rem}.col{flex:1}label{display:block;font-size:.9rem;color:#cbd5e1;margin:.35rem 0 .2rem}
+  #setup .panel{width:88%;max-width:470px;background:#141414;border:1px solid #222;border-radius:12px;padding:1rem}
+  .row{display:flex;gap:.6rem}.col{flex:1}
+  label{display:block;font-size:.9rem;color:#cbd5e1;margin:.35rem 0 .2rem}
   input[type=text]{width:100%;padding:.6rem .7rem;border:1px solid #333;background:#0b0b0b;color:#fff;border-radius:8px}
   .radio{display:flex;gap:.8rem;align-items:center;margin:.2rem 0 .8rem}
   .radio label{display:flex;align-items:center;gap:.35rem;cursor:pointer;margin:0}
   .hint{color:#9ca3af;font-size:.85rem;margin-top:.4rem}
-  .btn{padding:.6rem 1rem;border-radius:10px;cursor:pointer;border:1px solid #2d2d2d;background:#1a1a1a;color:#fff}
+  .btn{padding:.55rem .9rem;border-radius:10px;cursor:pointer;border:1px solid #2d2d2d;background:#1a1a1a;color:#fff}
   .btn.primary{background:var(--ok);border-color:#16a34a;color:#07210c;font-weight:700}
   .btn:disabled{opacity:.6;cursor:not-allowed}
+
+  /* Main */
   #main{grid-template-rows:auto auto 1fr auto}
-  header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.55rem .8rem;display:flex;align-items:center;justify-content:space-between}
-  .status{font-size:.9rem;color:#374151}.pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;background:#e5e7eb;font-size:.75rem;margin-left:.35rem}
-  .controls{display:flex;gap:.4rem}.controls .btn{background:#fff;border:1px solid #d0d7de;color:#111}.controls .danger{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
-  #banner{display:none;padding:.5rem .9rem;font-weight:600}.banner-warn{background:#fff7ed;color:#92400e;border-bottom:1px solid #fde68a}.banner-err{background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca}
-  #actions{background:#fbfbfb;border-bottom:1px solid #eee;padding:.35rem .6rem;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
-  #actions .btn{background:#fff;border:1px solid #d0d7de;color:#111}#actions input[type=file]{display:none}
+  header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.5rem .7rem;display:flex;align-items:center;justify-content:space-between}
+  .status{font-size:.9rem;color:#374151}
+  .pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;background:#e5e7eb;font-size:.75rem;margin-left:.35rem}
+  .controls{display:flex;gap:.35rem}
+  .controls .btn{background:#fff;border:1px solid #d0d7de;color:#111}
+  .controls .danger{background:#fee2e2;border-color:#fecaca;color:#7f1d1d}
+
+  #banner{display:none;padding:.45rem .7rem;font-weight:600}
+  .banner-warn{background:#fff7ed;color:#92400e;border-bottom:1px solid #fde68a}
+  .banner-err{background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca}
+
+  #actions{background:#fbfbfb;border-bottom:1px solid #eee;padding:.3rem .6rem;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
+  #actions .btn{background:#fff;border:1px solid #d0d7de;color:#111}
+  #actions input[type=file]{display:none}
+
   #stage{display:grid;grid-template-rows:1fr auto}
   #specchioWrap{position:relative;overflow:hidden;border-bottom:1px solid rgba(0,0,0,.08)}
   #specchio{position:absolute;inset:0;background:#10b981;background-size:cover;background-position:center;background-repeat:no-repeat}
-  #chat{display:grid;grid-template-rows:auto 1fr;height:100%;background:radial-gradient(#00000006 1px,transparent 1px) 0 0/12px 12px,var(--card)}
+
+  #chat{display:grid;grid-template-rows:auto 1fr;height:100%;
+        background:radial-gradient(#00000006 1px,transparent 1px) 0 0/12px 12px,var(--card)}
   #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem;font-weight:700;color:#374151;font-size:.9rem}
   #names div{text-align:center}
-  #grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;padding:.5rem .6rem;overflow:auto}
-  .colList{display:flex;flex-direction:column;gap:.35rem}
-  .bubble{display:inline-block;max-width:90%;padding:.45rem .6rem;border-radius:.8rem;box-shadow:0 1px 0 rgba(0,0,0,.06);word-wrap:break-word;white-space:pre-wrap;line-height:1.25}
+  #grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;padding:.45rem .6rem;overflow:auto}
+  .colList{display:flex;flex-direction:column;gap:.3rem}
+  .bubble{display:inline-block;max-width:90%;padding:.4rem .55rem;border-radius:.8rem;box-shadow:0 1px 0 rgba(0,0,0,.06);word-wrap:break-word;white-space:pre-wrap;line-height:1.25}
   .colList.me .bubble.last{background:var(--me);border:1px solid #cfe9c7;font-size:1rem}
   .colList.peer .bubble.last{background:var(--peer);border:1px solid #eef2f7;font-size:1rem}
   .colList.me .bubble:not(.last){background:var(--me-old);border:1px solid #b2d0aa;font-size:.85rem;opacity:.85}
   .colList.peer .bubble:not(.last){background:var(--peer-old);border:1px solid #dfdfdf;font-size:.85rem;opacity:.85}
-  .composer{background:var(--bar);border-top:1px solid var(--line);padding:.55rem .6rem;display:flex;gap:.5rem;align-items:center}
-  #text{flex:1;padding:.6rem .8rem;border:1px solid #d0d7de;border-radius:999px;background:#fff}
-  #sendBtn{padding:.6rem 1rem;border:1px solid #16a34a;background:var(--ok);color:#fff;border-radius:999px;font-weight:700}
+
+  .composer{background:var(--bar);border-top:1px solid var(--line);padding:.5rem .6rem;display:flex;gap:.45rem;align-items:center}
+  #text{flex:1;padding:.55rem .75rem;border:1px solid #d0d7de;border-radius:999px;background:#fff}
+  #sendBtn{padding:.55rem .9rem;border:1px solid #16a34a;background:var(--ok);color:#fff;border-radius:999px;font-weight:700}
   #sendBtn:disabled{opacity:.6;cursor:not-allowed}
+
+  /* History overlay */
   #history{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
-  #history .card{width:86%;max-width:540px;max-height:70%;background:#fff;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-direction:column}
-  #history header{padding:.5rem .8rem;font-weight:700;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
-  #history main{padding:.6rem .8rem;overflow:auto}
+  #history .card{width:86%;max-width:480px;max-height:70%;background:#fff;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-direction:column}
+  #history header{padding:.5rem .7rem;font-weight:700;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center}
+  #history main{padding:.6rem .7rem;overflow:auto}
   .hrow{display:flex;gap:.5rem;margin:.15rem 0}.hwho{width:80px;font-weight:700;color:#6b7280}.htext{flex:1}
-  #jsErr{position:absolute;inset:auto 12px 12px 12px;background:#fee2e2;color:#7f1d1d;padding:.5rem .75rem;border:1px solid #fecaca;border-radius:8px;display:none;font-weight:700}
+
+  #jsErr{position:absolute;left:12px;right:12px;bottom:12px;background:#fee2e2;color:#7f1d1d;padding:.5rem .75rem;border:1px solid #fecaca;border-radius:8px;display:none;font-weight:700}
 </style>
 </head>
 <body>
@@ -77,7 +108,9 @@
         <div class="hint">SERVER genera il codice e condivide il link. CLIENT inserisce il codice e si collega.</div>
       </div>
     </main>
-    <footer style="padding:.65rem .9rem;color:#9ca3af;border-top:1px solid #222">Nessun dato su server: il flusso viaggia P2P tra i browser.</footer>
+    <footer style="padding:.65rem .9rem;color:#9ca3af;border-top:1px solid #222">
+      Nessun dato su server: il flusso viaggia P2P tra i browser.
+    </footer>
   </section>
 
   <!-- Main -->
@@ -120,27 +153,31 @@
 </div>
 
 <script>
-/* ===== Error banner ===== */
+/* ========= setScreen GLOBAL (fix) ========= */
+function setScreen(name){
+  var s=document.getElementById('setup');
+  var m=document.getElementById('main');
+  if(s) s.classList.remove('active');
+  if(m) m.classList.remove('active');
+  var t=document.getElementById(name);
+  if(t) t.classList.add('active');
+}
+window.setScreen = setScreen;
+
+/* ========= Banner errori ========= */
 window.addEventListener('error', function(e){
-  var el=document.getElementById('jsErr');
-  if(!el) return;
+  var el=document.getElementById('jsErr'); if(!el) return;
   var msg=(e&&e.message)?e.message:'Errore sconosciuto';
   var where=(e&&e.filename)?(' @ '+e.filename+':'+e.lineno):'';
   el.textContent='Errore script: '+msg+where; el.style.display='block';
 });
 
-/* ===== Util ===== */
-function $(id){return document.getElementById(id)}
-function showBanner(t,kind){ var el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block'; }
-function hideBanner(){ var el=$('banner'); if(!el) return; el.style.display='none'; el.textContent=''; el.className=''; }
-function mustHave(ids){ var miss=[]; for(var i=0;i<ids.length;i++){ if(!$(ids[i])) miss.push(ids[i]); } if(miss.length){ showBanner('Elementi mancanti nel DOM: '+miss.join(', '),'err'); console.warn('Missing IDs:', miss); } }
-
-/* ===== App ===== */
+/* ========= App ========= */
 (function(){
 'use strict';
 
 var STUNS=[{urls:'stun:stun.l.google.com:19302'}];
-var TURNS=[]; // eventualmente aggiungi TURN
+var TURNS=[];                         // opzionale
 var SIGNAL_BASE='https://ntfy.sh';
 
 var pc=null, dc=null, sse=null;
@@ -156,19 +193,24 @@ var myNick='Io', peerNick='Peer';
 var history=[], historyEnabled=true;
 
 /* --- helpers --- */
+function $(id){return document.getElementById(id)}
+function showBanner(t,kind){ var el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block'; }
+function hideBanner(){ var el=$('banner'); if(!el) return; el.style.display='none'; el.textContent=''; el.className=''; }
+function genCode(){ return 'P2P-'+Math.random().toString(36).slice(2,7).toUpperCase() }
 function topicBase(code){ return 'p2pchat-'+code }
 function buildTopic(){ return baseTopic+'-'+topicGen }
-function genCode(){ return 'P2P-'+Math.random().toString(36).slice(2,7).toUpperCase() }
+function currentBaseURL(){ var u=new URL(location.href); return u.origin+u.pathname }
+function makeInviteLink(code){ var u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString() }
+function setStatus(s){ var el=$('status'); if(el) el.textContent=s; }
 function labelNames(){ $('nameClient').textContent='CLIENT: '+(isServer?peerNick:myNick); $('nameServer').textContent='SERVER: '+(isServer?myNick:peerNick); }
 function appendMsg(side,text){ var col=(side==='client')?$('colClient'):$('colServer'); if(!col) return; var olds=col.querySelectorAll('.bubble.last'); for(var i=0;i<olds.length;i++) olds[i].classList.remove('last'); var b=document.createElement('div'); b.className='bubble last'; b.textContent=text; col.appendChild(b); col.parentElement.scrollTop=col.parentElement.scrollHeight; if(historyEnabled){ history.push({side:side,text:text}); } }
 function redrawHistory(){ var body=$('histBody'); if(!body) return; body.innerHTML=''; for(var i=0;i<history.length;i++){ var r=document.createElement('div'); r.className='hrow'; var w=document.createElement('div'); w.className='hwho'; w.textContent=history[i].side.toUpperCase(); var t=document.createElement('div'); t.className='htext'; t.textContent=history[i].text; r.appendChild(w); r.appendChild(t); body.appendChild(r);} }
-function setStatus(s){ var el=$('status'); if(el) el.textContent=s; }
 function setBackground(u){ var grid=$('grid'); if(!grid) return; if(u){ grid.style.backgroundImage='url("'+u+'")'; grid.style.backgroundSize='cover'; grid.style.backgroundPosition='center'; } else { grid.style.backgroundImage='none'; } }
 function setSpecchio(u){ var s=$('specchio'); if(!s) return; s.style.backgroundImage=u?'url("'+u+'")':'none'; }
 function fileToDataUrl(file){ return new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){res(fr.result)}; fr.onerror=rej; fr.readAsDataURL(file); }); }
-function currentBaseURL(){ var u=new URL(location.href); return u.origin+u.pathname }
-function makeInviteLink(code){ var u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString() }
 function publish(obj){ if(!roomCode) return Promise.resolve(); var body=JSON.stringify(Object.assign({},obj,{from:selfId})); return fetch(SIGNAL_BASE+'/'+currentTopic,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:body}).catch(function(){}); }
+
+/* --- signaling SSE --- */
 function openSSE(tpc){
   if(sse){ try{sse.close()}catch(e){} sse=null; }
   var url=SIGNAL_BASE+'/'+tpc+'/sse';
@@ -177,18 +219,25 @@ function openSSE(tpc){
   sse.onerror=function(){ if(sseUp){ showBanner('Signaling disconnesso. Riconnessione…','warn'); } sseUp=false; var pill=$('pillSSE'); if(pill){ pill.style.background='#fde68a'; pill.style.border='1px solid #fbbf24'; } try{sse.close()}catch(e){} setTimeout(function(){ openSSE(tpc) }, sseBackoff); sseBackoff=Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff*1.8)); };
   sse.onmessage=function(ev){ try{ var env=JSON.parse(ev.data); if(!env||typeof env.message!=='string') return; var msg=JSON.parse(env.message); if(!msg||msg.from===selfId) return; handleSignal(msg); }catch(e){ console.warn('SSE parse',e); } };
 }
+
+/* --- WebRTC peer --- */
 function setupPeer(){
   pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false;
   if(discTimer){ clearTimeout(discTimer); discTimer=null; }
   pc=new RTCPeerConnection({iceServers:STUNS.concat(TURNS),iceTransportPolicy:'all'});
-  pc.oniceconnectionstatechange=function(){ var st=pc.iceConnectionState;
+
+  pc.oniceconnectionstatechange=function(){
+    var st=pc.iceConnectionState;
     if(st==='failed'){ showBanner('Connessione peer fallita. Riprovo…','err'); requestSwitch('ice-failed'); }
     else if(st==='disconnected'){ showBanner('Peer disconnesso. Attendo…','warn'); if(!discTimer) discTimer=setTimeout(function(){ requestSwitch('ice-disconnected') },2500); }
-    else if(st==='connected'||st==='completed'){ if(discTimer){ clearTimeout(discTimer); discTimer=null; } hideBanner(); } };
-  pc.onconnectionstatechange=function(){ var st=pc.connectionState;
+    else if(st==='connected'||st==='completed'){ if(discTimer){ clearTimeout(discTimer); discTimer=null; } hideBanner(); }
+  };
+  pc.onconnectionstatechange=function(){
+    var st=pc.connectionState;
     if(st==='connected'){ setStatus('P2P connesso'); var sb=$('sendBtn'); if(sb) sb.disabled=false; hideBanner(); switching=false; }
     else if(st==='failed'){ setStatus('connessione fallita'); var sb2=$('sendBtn'); if(sb2) sb2.disabled=true; requestSwitch('conn-failed'); }
-    else if(st==='disconnected'){ setStatus('connessione persa'); var sb3=$('sendBtn'); if(sb3) sb3.disabled=true; } };
+    else if(st==='disconnected'){ setStatus('connessione persa'); var sb3=$('sendBtn'); if(sb3) sb3.disabled=true; }
+  };
   if(isServer){ dc=pc.createDataChannel('chat'); wireDC(dc); } else { pc.ondatachannel=function(e){ dc=e.channel; wireDC(dc); }; }
   pc.onicecandidate=function(e){ if(e&&e.candidate) publish({t:'candidate',candidate:e.candidate}); };
 }
@@ -198,30 +247,123 @@ function wireDC(ch){
   ch.onmessage=function(e){ handleIncoming(e.data); };
 }
 function maybeSendOffer(){ if(!isServer||offerSent) return; pc.createOffer().then(function(of){ return pc.setLocalDescription(of); }).then(function(){ return publish({t:'offer',sdp:pc.localDescription}); }).then(function(){ offerSent=true; }).catch(function(e){ console.error(e); }); }
-function handleSignal(msg){
-  if(msg.t==='hello'){ if(msg.nick){ peerNick=msg.nick; labelNames(); } maybeSendOffer();
-  } else if(msg.t==='quit'){ showBanner('Il peer ha lasciato la sessione.','warn'); setTimeout(function(){ hardResetToSetup(); },250);
-  } else if(msg.t==='switch'){ if(msg.gen){ applySwitch(msg.gen); }
-  } else if(msg.t==='need-switch'){ if(isServer) requestSwitch('asked-by-peer');
-  } else if(msg.t==='offer'){ pc.setRemoteDescription(msg.sdp).then(function(){ remoteSet=true; for(var i=0;i<pendingCandidates.length;i++){ pc.addIceCandidate(pendingCandidates[i]).catch(function(e){console.warn('addIce buffered',e)}); } pendingCandidates=[]; if(!answerSent){ return pc.createAnswer().then(function(ans){ return pc.setLocalDescription(ans); }).then(function(){ return publish({t:'answer',sdp:pc.localDescription}); }).then(function(){ answerSent=true; }); } }).catch(function(e){ console.error(e); });
-  } else if(msg.t==='answer'){ pc.setRemoteDescription(msg.sdp).then(function(){ remoteSet=true; for(var i=0;i<pendingCandidates.length;i++){ pc.addIceCandidate(pendingCandidates[i]).catch(function(e){console.warn('addIce buffered',e)}); } pendingCandidates=[]; }).catch(function(e){ console.error(e); });
-  } else if(msg.t==='candidate'){ if(remoteSet&&pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(function(e){ console.warn('addIce',e); }); } else { pendingCandidates.push(msg.candidate); } }
-}
-function requestSwitch(why){ if(switching) return; switching=true; if(isServer){ var newGen=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6); publish({t:'switch',gen:newGen,why:why}).then(function(){ setTimeout(function(){ applySwitch(newGen); },120); }).catch(function(){ setTimeout(function(){ applySwitch(newGen); },200); }); } else { publish({t:'need-switch',why:why}); } }
-function applySwitch(newGen){ cleanupPeer(); topicGen=newGen; currentTopic=buildTopic(); openSSE(currentTopic); setupPeer(); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); setStatus('riconnessione…'); hideBanner(); }
-function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch(_){ } try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch(_){ } dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false; }
-function hardResetToSetup(){ historyEnabled=false; try{ if(sse){ sse.close(); } }catch(_){ } cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null; var cb=$('codeBox'); if(cb) cb.textContent='—'; setBackground(null); setSpecchio(null); var cc=$('colClient'), cs=$('colServer'); if(cc) cc.innerHTML=''; if(cs) cs.innerHTML=''; history=[]; setStatus('offline'); setScreen('setup'); }
 
-/* ===== Event delegation ===== */
+/* --- Control/Text messages --- */
+function sendText(txt){ if(!dc||dc.readyState!=='open') return; try{ dc.send(JSON.stringify({t:'txt',text:txt})); }catch(e){} }
+function sendCtrl(obj){ obj=obj||{}; if(dc&&dc.readyState==='open'){ try{ dc.send(JSON.stringify(Object.assign({t:'ctrl'}, obj))); }catch(e){} } if(obj.kind==='quit'){ publish({t:'quit'}); } }
+function handleIncoming(raw){
+  try{
+    var msg=JSON.parse(raw);
+    if(msg.t==='txt'){
+      var side=(isServer?'client':'server'); appendMsg(side,msg.text);
+    }else if(msg.t==='ctrl'){
+      if(msg.kind==='bg' && msg.dataUrl) setBackground(msg.dataUrl);
+      else if(msg.kind==='bg-clear') setBackground(null);
+      else if(msg.kind==='spec' && msg.dataUrl) setSpecchio(msg.dataUrl);
+      else if(msg.kind==='spec-clear') setSpecchio(null);
+    }
+  }catch(_){
+    var side2=(isServer?'client':'server'); appendMsg(side2,raw);
+  }
+}
+
+/* --- Signaling handler + reconnect --- */
+function handleSignal(msg){
+  if(msg.t==='hello'){
+    if(msg.nick) { peerNick=msg.nick; labelNames(); }
+    maybeSendOffer();
+
+  } else if(msg.t==='quit'){
+    showBanner('Il peer ha lasciato la sessione.','warn');
+    setTimeout(function(){ hardResetToSetup(); },250);
+
+  } else if(msg.t==='switch'){
+    if(msg.gen){ applySwitch(msg.gen); }
+
+  } else if(msg.t==='need-switch'){
+    if(isServer) requestSwitch('asked-by-peer');
+
+  } else if(msg.t==='offer'){
+    pc.setRemoteDescription(msg.sdp).then(function(){
+      remoteSet=true;
+      for(var i=0;i<pendingCandidates.length;i++){
+        pc.addIceCandidate(pendingCandidates[i]).catch(function(e){console.warn('addIce buffered',e)});
+      }
+      pendingCandidates=[];
+      if(!answerSent){
+        return pc.createAnswer().then(function(ans){ return pc.setLocalDescription(ans); })
+          .then(function(){ return publish({t:'answer',sdp:pc.localDescription}); })
+          .then(function(){ answerSent=true; });
+      }
+    }).catch(function(e){ console.error(e); });
+
+  } else if(msg.t==='answer'){
+    pc.setRemoteDescription(msg.sdp).then(function(){
+      remoteSet=true;
+      for(var i=0;i<pendingCandidates.length;i++){
+        pc.addIceCandidate(pendingCandidates[i]).catch(function(e){console.warn('addIce buffered',e)});
+      }
+      pendingCandidates=[];
+    }).catch(function(e){ console.error(e); });
+
+  } else if(msg.t==='candidate'){
+    if(remoteSet && pc.remoteDescription){
+      pc.addIceCandidate(msg.candidate).catch(function(e){ console.warn('addIce',e); });
+    } else {
+      pendingCandidates.push(msg.candidate);
+    }
+  }
+}
+
+function requestSwitch(why){
+  if(switching) return; switching=true;
+  if(isServer){
+    var newGen=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6);
+    publish({t:'switch',gen:newGen,why:why}).then(function(){ setTimeout(function(){ applySwitch(newGen); },120); })
+      .catch(function(){ setTimeout(function(){ applySwitch(newGen); },200); });
+  } else {
+    publish({t:'need-switch',why:why});
+  }
+}
+function applySwitch(newGen){
+  cleanupPeer();
+  topicGen=newGen; currentTopic=buildTopic();
+  openSSE(currentTopic); setupPeer();
+  publish({t:'hello',nick:myNick,role:(isServer?'server':'client')});
+  setStatus('riconnessione…'); hideBanner();
+}
+function cleanupPeer(){
+  try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch(_){}
+  try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch(_){}
+  dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false;
+}
+
+/* --- Quit / reset --- */
+function hardResetToSetup(){
+  historyEnabled=false;
+  try{ if(sse){ sse.close(); } }catch(_){}
+  cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
+  var cb=$('codeBox'); if(cb) cb.textContent='—';
+  setBackground(null); setSpecchio(null);
+  var cc=$('colClient'), cs=$('colServer'); if(cc) cc.innerHTML=''; if(cs) cs.innerHTML='';
+  history=[];
+  setStatus('offline');
+  setScreen('setup');
+}
+
+/* --- UI: event delegation --- */
 document.addEventListener('click', function(ev){
   var id=(ev.target&&ev.target.id)||'';
   switch(id){
     case 'btnPaste':
-      if(navigator.clipboard && navigator.clipboard.readText){ navigator.clipboard.readText().then(function(t){ var r=$('room'); if(r) r.value=(t||'').trim(); }); }
+      if(navigator.clipboard && navigator.clipboard.readText){
+        navigator.clipboard.readText().then(function(t){ var r=$('room'); if(r) r.value=(t||'').trim(); });
+      }
       break;
+
     case 'btnStart': {
-      myNick = (($('nickMe')&&$('nickMe').value)||'Io').trim();
-      var roleEl = document.querySelector('input[name="role"]:checked'); isServer = !roleEl || roleEl.value==='server';
+      myNick=(($('nickMe')&&$('nickMe').value)||'Io').trim();
+      var roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
       if(isServer){
         roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic();
         var cb=$('codeBox'); if(cb) cb.textContent=roomCode;
@@ -235,13 +377,17 @@ document.addEventListener('click', function(ev){
         setScreen('main'); afterEnterMain(true); startSession();
       }
     } break;
+
     case 'btnHistory': redrawHistory(); var h=$('history'); if(h) h.style.display='flex'; break;
     case 'btnCloseHist': var h2=$('history'); if(h2) h2.style.display='none'; break;
     case 'btnQuit': sendCtrl({kind:'quit'}); hardResetToSetup(); break;
+
     case 'btnBg': var f=$('fileBg'); if(f) f.click(); break;
     case 'btnBgClr': setBackground(null); sendCtrl({kind:'bg-clear'}); break;
+
     case 'btnSpec': var s=$('fileSpec'); if(s) s.click(); break;
     case 'btnSpecClr': setSpecchio(null); sendCtrl({kind:'spec-clear'}); break;
+
     case 'sendBtn': sendMessage(); break;
   }
 });
@@ -259,7 +405,7 @@ document.addEventListener('keydown', function(ev){
   if(ev.key==='Enter' && ev.target && ev.target.id==='text'){ ev.preventDefault(); sendMessage(); }
 });
 
-/* ===== Setup / Start ===== */
+/* --- Start session helpers --- */
 function afterEnterMain(newSession){
   labelNames();
   if(newSession){
@@ -267,10 +413,20 @@ function afterEnterMain(newSession){
     setBackground(null); setSpecchio(null); history=[];
   }
 }
-function startSession(){ setStatus('preparazione…'); hideBanner(); historyEnabled=true; setupPeer(); openSSE(currentTopic); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); setStatus('in attesa handshake…'); }
-function handleIncoming(raw){ try{ var msg=JSON.parse(raw); if(msg.t==='txt'){ var side=(isServer?'client':'server'); appendMsg(side,msg.text); } }catch(_){ var side2=(isServer?'client':'server'); appendMsg(side2,raw); } }
+function startSession(){
+  setStatus('preparazione…'); hideBanner(); historyEnabled=true;
+  setupPeer(); openSSE(currentTopic);
+  publish({t:'hello',nick:myNick,role:(isServer?'server':'client')});
+  setStatus('in attesa handshake…');
+}
+function sendMessage(){
+  var t=$('text').value; if(!t) return;
+  var side=isServer?'server':'client';
+  sendText(t); appendMsg(side,t);
+  $('text').value='';
+}
 
-/* ===== Auto-join da URL ===== */
+/* --- Auto-join via URL --- */
 (function(){
   var url=new URL(location.href);
   var code=(url.searchParams.get('code')||'').trim().toUpperCase();
@@ -278,12 +434,9 @@ function handleIncoming(raw){ try{ var msg=JSON.parse(raw); if(msg.t==='txt'){ v
   if(code){ var r=$('room'); if(r) r.value=code; if(join){ var radio=document.querySelector('input[name="role"][value="client"]'); if(radio) radio.checked=true; } }
 })();
 
-/* ===== Network awareness ===== */
+/* --- Network awareness --- */
 window.addEventListener('offline', function(){ showBanner('Sei offline. Verifica la connessione.','warn'); });
 window.addEventListener('online', function(){ hideBanner(); if(currentTopic) openSSE(currentTopic); });
-
-/* Sanity check (mostra a schermo se manca qualcosa, ma non crasha) */
-mustHave(['setup','main','btnStart','btnPaste','btnHistory','btnCloseHist','btnQuit','btnBg','btnBgClr','btnSpec','btnSpecClr','fileBg','fileSpec','sendBtn','text','codeBox','specchio','grid','colClient','colServer']);
 
 })(); // end IIFE
 </script>
