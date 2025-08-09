@@ -1,34 +1,34 @@
-<!-- P2P Chat v0.2 — Specchio con Cornice (solo SERVER), sfondo rimosso -->
+<!-- P2P Chat v0.3 — contrasto + layout mockup + feedback client -->
 <!doctype html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat v0.2 — Specchio con Cornice</title>
+<title>P2P Chat v0.3 — Specchio con Cornice</title>
 <style>
   :root{
-    --bg:#000000; --bar:#0f172a; --line:#1f2937; --txt:#e5e7eb;
-    --me:#d1f1c9; --peer:#ffffff; --me-old:#b6d9ae; --peer-old:#e6e6e6;
-    /* insets calcolati per la tua cornice (471px, area verde) */
+    --bg:#000; --bar:#0b1220; --line:#1f2937; --txt:#e5e7eb;
+    --bubble-me:#d4f7c8;      --bubble-me-text:#0f2e13;
+    --bubble-peer:#ffffff;    --bubble-peer-text:#0b1020;
+    --bubble-me-old:#b4d7aa;  --bubble-peer-old:#d9d9d9;
+    /* insets area verde della tua cornice 471×471 */
     --inset-top:16.14%; --inset-right:16.56%; --inset-bottom:16.35%; --inset-left:16.35%;
   }
   *{box-sizing:border-box} html,body{height:100%}
-  body{margin:0;background:#000;display:grid;place-items:center;padding:1rem;color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  body{margin:0;background:var(--bg);display:grid;place-items:center;padding:1rem;color:var(--txt);
+       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
   /* DIMENSIONI FISSE */
-  #app{
-    width:512px;height:800px;background:#000;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.25);
-    overflow:hidden;position:relative;border:1px solid #111827
-  }
+  #app{width:512px;height:800px;background:#000;border-radius:12px;overflow:hidden;position:relative;border:1px solid #111}
   .screen{position:absolute;inset:0;display:none}.screen.active{display:grid}
 
   /* SETUP */
   #setup{grid-template-rows:auto 1fr auto}
-  #setup header{padding:.7rem .9rem;background:#0b1220;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  #setup header{padding:.7rem .9rem;background:var(--bar);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
   #setup main{display:grid;place-items:center;padding:1rem}
   #setup .panel{width:88%;max-width:470px;background:#0b0f1a;border:1px solid #0f172a;border-radius:12px;padding:1rem}
   .row{display:flex;gap:.6rem}.col{flex:1}
   label{display:block;font-size:.9rem;color:#94a3b8;margin:.35rem 0 .2rem}
-  input[type=text]{width:100%;padding:.6rem .7rem;border:1px solid #223; background:#0b0f1a;color:#fff;border-radius:8px}
+  input[type=text]{width:100%;padding:.6rem .7rem;border:1px solid #223;background:#0b0f1a;color:#fff;border-radius:8px}
   .radio{display:flex;gap:.8rem;align-items:center;margin:.2rem 0 .8rem}
   .radio label{display:flex;align-items:center;gap:.35rem;cursor:pointer;margin:0}
   .hint{color:#9ca3af;font-size:.85rem;margin-top:.4rem}
@@ -37,8 +37,8 @@
   .btn:disabled{opacity:.6;cursor:not-allowed}
 
   /* MAIN */
-  #main{grid-template-rows:auto auto 1fr auto}
-  header.bar{background:#0b1220;border-bottom:1px solid var(--line);padding:.5rem .7rem;display:flex;align-items:center;justify-content:space-between}
+  #main{grid-template-rows:auto auto auto 1fr auto}
+  header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.5rem .7rem;display:flex;align-items:center;justify-content:space-between}
   .status{font-size:.9rem;color:#cbd5e1}
   .pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;background:#1f2937;font-size:.72rem;margin-left:.35rem}
   .controls{display:flex;gap:.35rem}
@@ -49,50 +49,52 @@
   .banner-warn{background:#3b2f14;color:#fde68a;border-bottom:1px solid #a16207}
   .banner-err{background:#3a1b1b;color:#fecaca;border-bottom:1px solid #b91c1c}
 
-  /* Azioni: SOLO Specchio */
-  #actions{background:#0b1220;border-bottom:1px solid var(--line);padding:.3rem .6rem;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
+  /* Barra azioni (server) + feedback (client) */
+  #actions{background:#0b1220;border-bottom:1px solid var(--line);padding:.35rem .6rem;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
   #actions .btn{background:#0f172a;border:1px solid #334155;color:#e5e7eb}
   #actions input[type=file]{display:none}
+  #feedbackBar{display:none;margin-left:auto;gap:.35rem;align-items:center}
+  #feedbackBar select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:.35rem .5rem}
+  #feedbackBar button{background:#22c55e;border:1px solid #16a34a;color:#052e14;border-radius:8px;padding:.35rem .6rem;font-weight:700}
 
-  /* STAGE: Cornice + Specchio */
-  #stage{display:grid;grid-template-rows:auto 1fr}
-  #frameWrap{position:relative; width:100%; aspect-ratio:1/1; background-position:center; background-size:contain; background-repeat:no-repeat;}
-  /* immagine specchio dentro la cornice (inset sui 4 lati) */
-  #specchio{
-    position:absolute; inset: var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
-    background:#10b981; background-position:center; background-size:cover; background-repeat:no-repeat; border-radius:2px;
-  }
+  /* FRAME + SPECCHIO */
+  #frameWrap{position:relative;width:100%;aspect-ratio:1/1;background-position:center;background-size:contain;background-repeat:no-repeat}
+  #specchio{position:absolute;inset:var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
+            background:#10b981;background-position:center;background-size:cover;background-repeat:no-repeat;border-radius:2px}
 
-  /* CHAT */
-  #chat{display:grid;grid-template-rows:auto 1fr;height:100%;background:#000}
-  #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem;font-weight:700;color:#cbd5e1;font-size:.9rem}
+  /* Nomi + CHAT */
+  #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem;font-weight:800;color:#cbd5e1;font-size:.95rem}
   #names div{text-align:center}
-  #grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;padding:.45rem .6rem;overflow:auto}
+  #chat{display:grid;grid-template-rows:auto 1fr;padding:.2rem .6rem .6rem}
+  #grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;overflow:auto}
   .colList{display:flex;flex-direction:column;gap:.3rem}
-  /* allineamento verso il centro */
-  .colList.peer{align-items:flex-start}
-  .colList.me{align-items:flex-end}
-  .colList.me .bubble{ text-align:right }
-  .colList.peer .bubble{ text-align:left }
-  .bubble{display:inline-block;max-width:90%;padding:.4rem .55rem;border-radius:.8rem;box-shadow:0 1px 0 rgba(0,0,0,.25);white-space:pre-wrap;line-height:1.25}
-  .colList.me .bubble.last{background:var(--me);border:1px solid #cfe9c7;font-size:1rem}
-  .colList.peer .bubble.last{background:var(--peer);border:1px solid #eef2f7;font-size:1rem}
-  .colList.me .bubble:not(.last){background:var(--me-old);border:1px solid #b2d0aa;font-size:.85rem;opacity:.9}
-  .colList.peer .bubble:not(.last){background:var(--peer-old);border:1px solid #dfdfdf;font-size:.85rem;opacity:.9}
+  .colList.peer{align-items:flex-start}.colList.me{align-items:flex-end}
+  .colList.me .bubble{text-align:right}.colList.peer .bubble{text-align:left}
 
-  .composer{background:#0b1220;border-top:1px solid var(--line);padding:.5rem .6rem;display:flex;gap:.45rem;align-items:center}
+  .bubble{display:inline-block;max-width:90%;padding:.5rem .7rem;border-radius:.9rem;
+          box-shadow:0 1px 0 rgba(0,0,0,.35);white-space:pre-wrap;line-height:1.25;transition:filter .25s,opacity .25s,transform .25s}
+  /* attivo (ultimo) con contrasto alto */
+  .colList.me   .bubble.last{background:var(--bubble-me);color:var(--bubble-me-text);border:1px solid #a7e3a0;font-size:1rem;transform:scale(1)}
+  .colList.peer .bubble.last{background:var(--bubble-peer);color:var(--bubble-peer-text);border:1px solid #e5e7eb;font-size:1rem;transform:scale(1)}
+  /* precedenti: più piccoli, più spenti */
+  .colList.me   .bubble:not(.last){background:var(--bubble-me-old);color:#122015;border:1px solid #94c789;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
+  .colList.peer .bubble:not(.last){background:var(--bubble-peer-old);color:#1b1b1b;border:1px solid #c9c9c9;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
+
+  .composer{background:var(--bar);border-top:1px solid var(--line);padding:.5rem .6rem;display:flex;gap:.45rem;align-items:center}
   #text{flex:1;padding:.55rem .75rem;border:1px solid #475569;border-radius:999px;background:#0f172a;color:#e5e7eb;caret-color:#e5e7eb}
   #text::placeholder{color:#94a3b8}
   #sendBtn{padding:.55rem .9rem;border:1px solid #16a34a;background:#22c55e;color:#052e14;border-radius:999px;font-weight:700}
   #sendBtn:disabled{opacity:.6;cursor:not-allowed}
 
-  /* HISTORY overlay */
+  /* STORIA + TOAST */
   #history{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
   #history .card{width:86%;max-width:480px;max-height:70%;background:#0b0f1a;border:1px solid #334155;border-radius:12px;display:flex;flex-direction:column;color:#e5e7eb}
   #history header{padding:.5rem .7rem;font-weight:700;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
   #history main{padding:.6rem .7rem;overflow:auto}
   .hrow{display:flex;gap:.5rem;margin:.15rem 0}.hwho{width:80px;font-weight:700;color:#9ca3af}.htext{flex:1}
 
+  #toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#111827;color:#e5e7eb;
+         border:1px solid #334155;border-radius:10px;padding:.45rem .7rem;display:none;z-index:5;box-shadow:0 8px 22px rgba(0,0,0,.35)}
   #jsErr{position:absolute;left:12px;right:12px;bottom:12px;background:#3a1b1b;color:#fee2e2;padding:.5rem .75rem;border:1px solid #b91c1c;border-radius:8px;display:none;font-weight:700}
 </style>
 </head>
@@ -101,7 +103,7 @@
 
   <!-- SETUP -->
   <section id="setup" class="screen active">
-    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.2</span></header>
+    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.3</span></header>
     <main>
       <div class="panel">
         <div class="row">
@@ -127,7 +129,7 @@
   <!-- MAIN -->
   <section id="main" class="screen">
     <header class="bar">
-      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.2</span></div>
+      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.3</span></div>
       <div class="controls">
         <button id="btnHistory" class="btn">STORIA</button>
         <button id="btnQuit" class="btn danger">ESCI</button>
@@ -137,349 +139,340 @@
     <div id="banner" role="status"></div>
 
     <div id="actions">
-      <!-- SOLO SERVER: bottoni visibili, il client non li vede -->
+      <!-- SOLO SERVER -->
       <button id="btnSpec" class="btn">Specchio</button>
       <button id="btnSpecClr" class="btn">Togli specchio</button>
       <input id="fileSpec" type="file" accept="image/*">
       <span style="margin-left:auto;color:#9ca3af;font-size:.9rem">Codice: <strong id="codeBox">—</strong></span>
+
+      <!-- SOLO CLIENT (quando arriva una nuova immagine) -->
+      <div id="feedbackBar">
+        <span style="color:#9ca3af">Feedback:</span>
+        <select id="fbSelect">
+          <option>AIUTO!</option>
+          <option>BELLISSIMA</option>
+          <option>Ne' CALDO NE' FREDDO</option>
+          <option>NORMALE</option>
+          <option>DA BRIVIDI!</option>
+          <option>NO GRAZIE</option>
+          <option>PAURA!</option>
+          <option>IMBARAZZO</option>
+        </select>
+        <button id="fbSend">Invia</button>
+      </div>
     </div>
 
-    <div id="stage">
-      <!-- Cornice come background; specchio è il quadrato interno -->
-      <div id="frameWrap"></div>
-      <div id="chat">
-        <div id="names"><div id="nameClient">CLIENT</div><div id="nameServer">SERVER</div></div>
-        <div id="grid"><div id="colClient" class="colList peer"></div><div id="colServer" class="colList me"></div></div>
+    <div id="frameWrap"></div>
+
+    <div id="names"><div id="nameClient">CLIENT</div><div id="nameServer">SERVER</div></div>
+
+    <div id="chat">
+      <div id="grid">
+        <div id="colClient" class="colList peer"></div>
+        <div id="colServer" class="colList me"></div>
       </div>
     </div>
 
     <div class="composer"><input id="text" type="text" placeholder="Scrivi un messaggio…"><button id="sendBtn" disabled>Invia</button></div>
   </section>
 
-  <!-- History overlay -->
   <div id="history"><div class="card"><header>Storia conversazione <button id="btnCloseHist" class="btn">Chiudi</button></header><main id="histBody"></main></div></div>
-
+  <div id="toast"></div>
   <div id="jsErr"></div>
 </div>
 
 <script>
-/* ====== v0.2 — variabili globali ====== */
-var APP_VERSION = '0.2';
-var FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.2';
+/* ====== v0.3 variabili ====== */
+const APP_VERSION = '0.3';
+const FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.3';
 
-/* ====== setScreen globale ====== */
+/* ====== setScreen ====== */
 function setScreen(name){
-  var s=document.getElementById('setup'), m=document.getElementById('main');
+  const s=document.getElementById('setup'), m=document.getElementById('main');
   if(s) s.classList.remove('active'); if(m) m.classList.remove('active');
-  var t=document.getElementById(name); if(t) t.classList.add('active');
+  const t=document.getElementById(name); if(t) t.classList.add('active');
 }
 window.setScreen=setScreen;
 
-/* ====== Error banner ====== */
-window.addEventListener('error', function(e){
-  var el=document.getElementById('jsErr'); if(!el) return;
-  var msg=(e&&e.message)?e.message:'Errore sconosciuto';
-  var where=(e&&e.filename)?(' @ '+e.filename+':'+e.lineno):'';
-  el.textContent='Errore script: '+msg+where; el.style.display='block';
+/* ====== error banner ====== */
+window.addEventListener('error', e=>{
+  const el=document.getElementById('jsErr'); if(!el) return;
+  el.textContent='Errore script: '+(e.message||'sconosciuto')+(e.filename?(' @ '+e.filename+':'+e.lineno):'');
+  el.style.display='block';
 });
 
-/* ====== App ====== */
-(function(){
+/* ====== app ====== */
+(()=>{
 'use strict';
 
-/* Config */
-var STUNS=[{urls:'stun:stun.l.google.com:19302'}];
-var TURNS=[];                // opzionale TURN
-var SIGNAL_BASE='https://ntfy.sh';
+const STUNS=[{urls:'stun:stun.l.google.com:19302'}];
+const TURNS=[];
+const SIGNAL_BASE='https://ntfy.sh';
 
-/* Stato */
-var pc=null, dc=null, sse=null;
-var isServer=false;
-var roomCode=null, baseTopic=null, topicGen='0', currentTopic=null;
-var selfId=crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
-var pendingCandidates=[], remoteSet=false, offerSent=false, answerSent=false;
-var sseBackoff=1000, SSE_BACKOFF_MAX=10000, sseUp=false;
-var switching=false, dcCloseTimer=null, discTimer=null;
+let pc=null, dc=null, sse=null;
+let isServer=false;
+let roomCode=null, baseTopic=null, topicGen='0', currentTopic=null;
+const selfId=crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
+let pendingCandidates=[], remoteSet=false, offerSent=false, answerSent=false;
+let sseBackoff=1000, SSE_BACKOFF_MAX=10000, sseUp=false;
+let switching=false, dcCloseTimer=null, discTimer=null;
 
-var myNick='Io', peerNick='Peer';
-var history=[], historyEnabled=true;
+let myNick='Io', peerNick='Peer';
+let history=[], historyEnabled=true;
 
-/* stato specchio (per sync) */
-var stateSpec=null;
+/* stato specchio + feedback */
+let stateSpec=null;
+let awaitingFeedback=false;
 
-/* Helpers DOM */
-function $(id){return document.getElementById(id)}
-function showBanner(t,kind){ var el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block'; }
-function hideBanner(){ var el=$('banner'); if(!el) return; el.style.display='none'; el.textContent=''; el.className=''; }
-function genCode(){ return 'P2P-'+Math.random().toString(36).slice(2,7).toUpperCase() }
-function topicBase(code){ return 'p2pchat-'+code }
-function buildTopic(){ return baseTopic+'-'+topicGen }
-function currentBaseURL(){ var u=new URL(location.href); return u.origin+u.pathname }
-function makeInviteLink(code){ var u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); u.searchParams.set('v',APP_VERSION); return u.toString() }
-function setStatus(s){ var el=$('status'); if(el) el.textContent=s; }
+/* utils DOM */
+const $=id=>document.getElementById(id);
+const showBanner=(t,kind)=>{const el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block';};
+const hideBanner=()=>{const el=$('banner'); if(!el) return; el.style.display='none'; el.textContent=''; el.className='';};
+const genCode=()=> 'P2P-'+Math.random().toString(36).slice(2,7).toUpperCase();
+const topicBase=code=>'p2pchat-'+code;
+const buildTopic=()=> baseTopic+'-'+topicGen;
+const currentBaseURL=()=>{const u=new URL(location.href); return u.origin+u.pathname;};
+const makeInviteLink=code=>{const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); u.searchParams.set('v',APP_VERSION); return u.toString();};
+const setStatus=s=>{const el=$('status'); if(el) el.textContent=s;};
 function labelNames(){ $('nameClient').textContent='CLIENT: '+(isServer?peerNick:myNick); $('nameServer').textContent='SERVER: '+(isServer?myNick:peerNick); }
+function toast(msg){const t=$('toast'); if(!t) return; t.textContent=msg; t.style.display='block'; clearTimeout(t._tm); t._tm=setTimeout(()=>{t.style.display='none'}, 3000);}
 
-/* Messaggi: ultimo in alto */
+/* messaggi: ultimo IN ALTO come da mockup */
 function appendMsg(side,text){
-  var col=(side==='client')?$('colClient'):$('colServer'); if(!col) return;
-  var last=col.querySelector('.bubble.last'); if(last) last.classList.remove('last');
-  var b=document.createElement('div'); b.className='bubble last'; b.textContent=text;
-  if(col.firstChild) col.insertBefore(b, col.firstChild); else col.appendChild(b);
-  var sc=col.parentElement; if(sc) sc.scrollTop=0;
-  if(historyEnabled){ history.push({side:side,text:text}); }
+  const col=(side==='client')?$('colClient'):$('colServer'); if(!col) return;
+  const last=col.querySelector('.bubble.last'); if(last) last.classList.remove('last');
+  const b=document.createElement('div'); b.className='bubble last'; b.textContent=text;
+  if(col.firstChild) col.insertBefore(b,col.firstChild); else col.appendChild(b);
+  const sc=col.parentElement; if(sc) sc.scrollTop=0;
+  if(historyEnabled) history.push({side,text});
 }
 function redrawHistory(){
-  var body=$('histBody'); if(!body) return; body.innerHTML='';
-  for(var i=0;i<history.length;i++){
-    var r=document.createElement('div'); r.className='hrow';
-    var w=document.createElement('div'); w.className='hwho'; w.textContent=history[i].side.toUpperCase();
-    var t=document.createElement('div'); t.className='htext'; t.textContent=history[i].text;
-    r.appendChild(w); r.appendChild(t); body.appendChild(r);
+  const body=$('histBody'); if(!body) return; body.innerHTML='';
+  for(const r of history){
+    const row=document.createElement('div'); row.className='hrow';
+    const w=document.createElement('div'); w.className='hwho'; w.textContent=r.side.toUpperCase();
+    const t=document.createElement('div'); t.className='htext'; t.textContent=r.text;
+    row.appendChild(w); row.appendChild(t); body.appendChild(row);
   }
 }
 
-/* Specchio */
+/* specchio + frame */
 function ensureFrame(){
-  var wrap=$('frameWrap'); if(!wrap) return;
+  const wrap=$('frameWrap'); if(!wrap) return;
   wrap.style.backgroundImage='url("'+FRAME_SRC+'")';
-  if(!document.getElementById('specchio')){
-    var s=document.createElement('div'); s.id='specchio'; wrap.appendChild(s);
-  }
+  if(!$('specchio')){ const s=document.createElement('div'); s.id='specchio'; wrap.appendChild(s); }
 }
-function setSpecchio(u){ ensureFrame(); var s=$('specchio'); if(!s) return; s.style.backgroundImage=u?'url("'+u+'")':'none'; stateSpec=u||null; }
-function fileToDataUrl(file){ return new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){res(fr.result)}; fr.onerror=rej; fr.readAsDataURL(file); }); }
+function setSpecchio(u){ ensureFrame(); const s=$('specchio'); if(!s) return; s.style.backgroundImage=u?'url("'+u+'")':'none'; stateSpec=u||null; }
 
-/* Signaling */
-function publish(obj){ if(!roomCode) return Promise.resolve(); var body=JSON.stringify(Object.assign({},obj,{from:selfId})); return fetch(SIGNAL_BASE+'/'+currentTopic,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:body}).catch(function(){}); }
+/* helpers I/O */
+const fileToDataUrl=f=>new Promise((res,rej)=>{const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(f);});
+function publish(obj){ if(!roomCode) return Promise.resolve(); const body=JSON.stringify({...obj,from:selfId}); return fetch(`${SIGNAL_BASE}/${currentTopic}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body}).catch(()=>{}); }
+
+/* SSE */
 function openSSE(tpc){
-  if(sse){ try{sse.close()}catch(e){} sse=null; }
-  var url=SIGNAL_BASE+'/'+tpc+'/sse';
-  sse=new EventSource(url);
-  sse.onopen=function(){ sseUp=true; sseBackoff=1000; var pill=$('pillSSE'); if(pill){ pill.style.background='#14532d'; pill.style.border='1px solid #16a34a'; } hideBanner(); };
-  sse.onerror=function(){ if(sseUp){ showBanner('Signaling disconnesso. Riconnessione…','warn'); } sseUp=false; var pill=$('pillSSE'); if(pill){ pill.style.background='#78350f'; pill.style.border='1px solid #fbbf24'; } try{sse.close()}catch(e){} setTimeout(function(){ openSSE(tpc) }, sseBackoff); sseBackoff=Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff*1.8)); };
-  sse.onmessage=function(ev){ try{ var env=JSON.parse(ev.data); if(!env||typeof env.message!=='string') return; var msg=JSON.parse(env.message); if(!msg||msg.from===selfId) return; handleSignal(msg); }catch(e){ console.warn('SSE parse',e); } };
+  if(sse){ try{sse.close()}catch{} sse=null; }
+  sse=new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
+  sse.onopen=()=>{ sseUp=true; sseBackoff=1000; const p=$('pillSSE'); if(p){p.style.background='#14532d';p.style.border='1px solid #16a34a';} hideBanner(); };
+  sse.onerror=()=>{ if(sseUp) showBanner('Signaling disconnesso. Riconnessione…','warn'); sseUp=false; const p=$('pillSSE'); if(p){p.style.background='#78350f';p.style.border='1px solid #fbbf24';} try{sse.close()}catch{} setTimeout(()=>openSSE(tpc), sseBackoff); sseBackoff=Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff*1.8)); };
+  sse.onmessage=ev=>{ try{ const env=JSON.parse(ev.data); if(!env||typeof env.message!=='string') return; const msg=JSON.parse(env.message); if(!msg||msg.from===selfId) return; handleSignal(msg); }catch{} };
 }
 
 /* WebRTC */
 function setupPeer(){
   pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false;
   if(discTimer){ clearTimeout(discTimer); discTimer=null; }
-  pc=new RTCPeerConnection({iceServers:STUNS.concat(TURNS),iceTransportPolicy:'all'});
-  pc.oniceconnectionstatechange=function(){
-    var st=pc.iceConnectionState;
+  pc=new RTCPeerConnection({iceServers:[...STUNS,...TURNS]});
+  pc.oniceconnectionstatechange=()=>{
+    const st=pc.iceConnectionState;
     if(st==='failed'){ showBanner('Connessione peer fallita. Riprovo…','err'); requestSwitch('ice-failed'); }
-    else if(st==='disconnected'){ showBanner('Peer disconnesso. Attendo…','warn'); if(!discTimer) discTimer=setTimeout(function(){ requestSwitch('ice-disconnected') },2500); }
+    else if(st==='disconnected'){ showBanner('Peer disconnesso. Attendo…','warn'); if(!discTimer) discTimer=setTimeout(()=>requestSwitch('ice-disconnected'), 2500); }
   };
-  pc.onconnectionstatechange=function(){
-    var st=pc.connectionState;
+  pc.onconnectionstatechange=()=>{
+    const st=pc.connectionState;
     if(st==='connected'){
-      setStatus('P2P connesso'); var sb=$('sendBtn'); if(sb) sb.disabled=false; hideBanner(); switching=false;
-      if(isServer && stateSpec) sendCtrl({kind:'spec', dataUrl:stateSpec}); // re-sync
-    } else if(st==='failed'){ setStatus('connessione fallita'); var sb2=$('sendBtn'); if(sb2) sb2.disabled=true; requestSwitch('conn-failed'); }
-    else if(st==='disconnected'){ setStatus('connessione persa'); var sb3=$('sendBtn'); if(sb3) sb3.disabled=true; }
+      setStatus('P2P connesso'); $('sendBtn').disabled=false; hideBanner(); switching=false;
+      if(isServer && stateSpec) sendCtrl({kind:'spec',dataUrl:stateSpec}); // re-sync
+    } else if(st==='failed'){ setStatus('connessione fallita'); $('sendBtn').disabled=true; requestSwitch('conn-failed'); }
+    else if(st==='disconnected'){ setStatus('connessione persa'); $('sendBtn').disabled=true; }
   };
-  if(isServer){ dc=pc.createDataChannel('chat'); wireDC(dc); } else { pc.ondatachannel=function(e){ dc=e.channel; wireDC(dc); }; }
-  pc.onicecandidate=function(e){ if(e&&e.candidate) publish({t:'candidate',candidate:e.candidate}); };
+  if(isServer){ dc=pc.createDataChannel('chat'); wireDC(dc); } else { pc.ondatachannel=e=>{ dc=e.channel; wireDC(dc); }; }
+  pc.onicecandidate=e=>{ if(e&&e.candidate) publish({t:'candidate',candidate:e.candidate}); };
 }
 function wireDC(ch){
-  ch.onopen=function(){ var sb=$('sendBtn'); if(sb) sb.disabled=false; hideBanner(); };
-  ch.onclose=function(){ var sb=$('sendBtn'); if(sb) sb.disabled=true; showBanner('Canale dati chiuso. Riconnessione…','err'); if(dcCloseTimer) clearTimeout(dcCloseTimer); dcCloseTimer=setTimeout(function(){ requestSwitch('dc-closed') },600); };
-  ch.onmessage=function(e){ handleIncoming(e.data); };
+  ch.onopen=()=>{ $('sendBtn').disabled=false; hideBanner(); };
+  ch.onclose=()=>{ $('sendBtn').disabled=true; showBanner('Canale dati chiuso. Riconnessione…','err'); if(dcCloseTimer) clearTimeout(dcCloseTimer); dcCloseTimer=setTimeout(()=>requestSwitch('dc-closed'),600); };
+  ch.onmessage=e=> handleIncoming(e.data);
 }
-function maybeSendOffer(){ if(!isServer||offerSent) return; pc.createOffer().then(function(of){ return pc.setLocalDescription(of); }).then(function(){ return publish({t:'offer',sdp:pc.localDescription}); }).then(function(){ offerSent=true; }).catch(function(e){ console.error(e); }); }
+function maybeSendOffer(){ if(!isServer||offerSent) return; pc.createOffer().then(of=>pc.setLocalDescription(of)).then(()=>publish({t:'offer',sdp:pc.localDescription})).then(()=>offerSent=true); }
 
-/* Messaging */
-function sendText(txt){ if(!dc||dc.readyState!=='open') return; try{ dc.send(JSON.stringify({t:'txt',text:txt})); }catch(e){} }
-function sendCtrl(obj){ obj=obj||{}; if(dc&&dc.readyState==='open'){ try{ dc.send(JSON.stringify(Object.assign({t:'ctrl'}, obj))); }catch(e){} } if(obj.kind==='quit'){ publish({t:'quit'}); } }
+/* messaging */
+function sendText(txt){ if(!dc||dc.readyState!=='open') return; try{ dc.send(JSON.stringify({t:'txt',text:txt})); }catch{} }
+function sendCtrl(obj){ obj=obj||{}; if(dc&&dc.readyState==='open'){ try{ dc.send(JSON.stringify({t:'ctrl',...obj})); }catch{} } if(obj.kind==='quit') publish({t:'quit'}); }
 function handleIncoming(raw){
   try{
-    var msg=JSON.parse(raw);
+    const msg=JSON.parse(raw);
     if(msg.t==='txt'){
-      var side=(isServer?'client':'server'); appendMsg(side,msg.text);
+      const side=(isServer?'client':'server'); appendMsg(side,msg.text);
     }else if(msg.t==='ctrl'){
-      if(msg.kind==='spec' && msg.dataUrl) setSpecchio(msg.dataUrl);
-      else if(msg.kind==='spec-clear') setSpecchio(null);
+      if(msg.kind==='spec' && msg.dataUrl){
+        setSpecchio(msg.dataUrl);
+        // lato client, mostra feedback selector
+        if(!isServer){ awaitingFeedback=true; toggleFeedback(true); }
+      }else if(msg.kind==='spec-clear'){
+        setSpecchio(null); if(!isServer) toggleFeedback(false);
+      }else if(msg.kind==='fb' && isServer){
+        toast(`Feedback dal client: ${msg.val}`);
+      }
     }
-  }catch(_){
-    var side2=(isServer?'client':'server'); appendMsg(side2,raw);
+  }catch{
+    const side=(isServer?'client':'server'); appendMsg(side, raw);
   }
 }
 
-/* Signaling handler + reconnect */
+/* signaling handler + reconnect */
 function handleSignal(msg){
   if(msg.t==='hello'){
     if(msg.nick) { peerNick=msg.nick; labelNames(); }
-    if(isServer){ publish({t:'state', spec:stateSpec}); } // sync stato specchio
+    if(isServer){ publish({t:'state', spec:stateSpec}); }
     maybeSendOffer();
 
   } else if(msg.t==='state'){
-    if(!isServer && msg.spec) setSpecchio(msg.spec);
+    if(!isServer && msg.spec){ setSpecchio(msg.spec); awaitingFeedback=true; toggleFeedback(true); }
 
   } else if(msg.t==='quit'){
-    showBanner('Il peer ha lasciato la sessione.','warn'); setTimeout(function(){ hardResetToSetup(); },250);
+    showBanner('Il peer ha lasciato la sessione.','warn'); setTimeout(()=>hardResetToSetup(),250);
 
   } else if(msg.t==='switch'){
-    if(msg.gen){ applySwitch(msg.gen); }
+    if(msg.gen) applySwitch(msg.gen);
 
   } else if(msg.t==='need-switch'){
     if(isServer) requestSwitch('asked-by-peer');
 
   } else if(msg.t==='offer'){
-    pc.setRemoteDescription(msg.sdp).then(function(){
-      remoteSet=true;
-      for(var i=0;i<pendingCandidates.length;i++){ pc.addIceCandidate(pendingCandidates[i]).catch(function(e){console.warn('addIce buffered',e)}); }
-      pendingCandidates=[];
-      if(!answerSent){
-        return pc.createAnswer().then(function(ans){ return pc.setLocalDescription(ans); })
-          .then(function(){ return publish({t:'answer',sdp:pc.localDescription}); })
-          .then(function(){ answerSent=true; });
-      }
-    }).catch(function(e){ console.error(e); });
+    pc.setRemoteDescription(msg.sdp).then(()=>{
+      remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[];
+      if(!answerSent){ return pc.createAnswer().then(ans=>pc.setLocalDescription(ans)).then(()=>publish({t:'answer',sdp:pc.localDescription})).then(()=>answerSent=true); }
+    });
 
   } else if(msg.t==='answer'){
-    pc.setRemoteDescription(msg.sdp).then(function(){
-      remoteSet=true;
-      for(var i=0;i<pendingCandidates.length;i++){ pc.addIceCandidate(pendingCandidates[i]).catch(function(e){console.warn('addIce buffered',e)}); }
-      pendingCandidates=[];
-    }).catch(function(e){ console.error(e); });
+    pc.setRemoteDescription(msg.sdp).then(()=>{ remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[]; });
 
   } else if(msg.t==='candidate'){
-    if(remoteSet && pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(function(e){ console.warn('addIce',e); }); }
-    else{ pendingCandidates.push(msg.candidate); }
+    if(remoteSet && pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(()=>{}); }
+    else pendingCandidates.push(msg.candidate);
   }
 }
 function requestSwitch(why){
   if(switching) return; switching=true;
   if(isServer){
-    var newGen=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6);
-    publish({t:'switch',gen:newGen,why:why}).then(function(){ setTimeout(function(){ applySwitch(newGen); },120); })
-      .catch(function(){ setTimeout(function(){ applySwitch(newGen); },200); });
-  } else {
-    publish({t:'need-switch',why:why});
-  }
+    const newGen=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6);
+    publish({t:'switch',gen:newGen,why}).then(()=>setTimeout(()=>applySwitch(newGen),120)).catch(()=>setTimeout(()=>applySwitch(newGen),200));
+  } else publish({t:'need-switch',why});
 }
 function applySwitch(newGen){
-  cleanupPeer();
-  topicGen=newGen; currentTopic=buildTopic();
-  openSSE(currentTopic); setupPeer();
+  cleanupPeer(); topicGen=newGen; currentTopic=buildTopic(); openSSE(currentTopic); setupPeer();
   publish({t:'hello',nick:myNick,role:(isServer?'server':'client')});
   if(isServer){ publish({t:'state', spec:stateSpec}); }
   setStatus('riconnessione…'); hideBanner();
 }
-function cleanupPeer(){
-  try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch(_){}
-  try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch(_){}
-  dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false;
-}
+function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch{} try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch{} dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false; }
 
-/* Quit / reset */
+/* quit/reset */
 function hardResetToSetup(){
-  historyEnabled=false;
-  try{ if(sse){ sse.close(); } }catch(_){}
-  cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
-  var cb=$('codeBox'); if(cb) cb.textContent='—';
-  setSpecchio(null);
-  var cc=$('colClient'), cs=$('colServer'); if(cc) cc.innerHTML=''; if(cs) cs.innerHTML='';
-  history=[];
-  setStatus('offline');
-  setScreen('setup');
+  historyEnabled=false; try{ if(sse) sse.close(); }catch{} cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
+  $('codeBox').textContent='—'; setSpecchio(null); $('colClient').innerHTML=''; $('colServer').innerHTML='';
+  history=[]; awaitingFeedback=false; toggleFeedback(false); setStatus('offline'); setScreen('setup');
 }
 
-/* Event delegation */
-document.addEventListener('click', function(ev){
-  var id=(ev.target&&ev.target.id)||'';
+/* UI events */
+document.addEventListener('click', ev=>{
+  const id=ev.target && ev.target.id || '';
   switch(id){
     case 'btnPaste':
-      if(navigator.clipboard && navigator.clipboard.readText){
-        navigator.clipboard.readText().then(function(t){ var r=$('room'); if(r) r.value=(t||'').trim(); });
-      }
+      if(navigator.clipboard?.readText) navigator.clipboard.readText().then(t=>{ const r=$('room'); if(r) r.value=(t||'').trim(); });
       break;
-
     case 'btnStart': {
-      myNick=(($('nickMe')&&$('nickMe').value)||'Io').trim();
-      var roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
+      myNick=($('nickMe').value||'Io').trim();
+      const roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
       if(isServer){
-        roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); var cb=$('codeBox'); if(cb) cb.textContent=roomCode;
+        roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
         setScreen('main'); afterEnterMain(true); startSession();
-        var link=makeInviteLink(roomCode); if(navigator.clipboard) navigator.clipboard.writeText(link).catch(function(){});
+        const link=makeInviteLink(roomCode); navigator.clipboard?.writeText(link).catch(()=>{});
       }else{
-        var code=(($('room')&&$('room').value)||'').trim().toUpperCase(); if(!code){ alert('Inserisci un codice stanza'); return; }
-        roomCode=code; baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); var cb2=$('codeBox'); if(cb2) cb2.textContent=roomCode;
+        const code=($('room').value||'').trim().toUpperCase(); if(!code){ alert('Inserisci un codice stanza'); return; }
+        roomCode=code; baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
         setScreen('main'); afterEnterMain(true); startSession();
       }
     } break;
 
-    case 'btnHistory': redrawHistory(); var h=$('history'); if(h) h.style.display='flex'; break;
-    case 'btnCloseHist': var h2=$('history'); if(h2) h2.style.display='none'; break;
+    case 'btnHistory': redrawHistory(); $('history').style.display='flex'; break;
+    case 'btnCloseHist': $('history').style.display='none'; break;
     case 'btnQuit': sendCtrl({kind:'quit'}); hardResetToSetup(); break;
 
-    case 'btnSpec': if(isServer){ var s=$('fileSpec'); if(s) s.click(); } break;
+    case 'btnSpec': if(isServer) $('fileSpec').click(); break;
     case 'btnSpecClr': if(isServer){ setSpecchio(null); sendCtrl({kind:'spec-clear'}); } break;
 
     case 'sendBtn': sendMessage(); break;
+
+    case 'fbSend':
+      if(!isServer && awaitingFeedback){
+        const val=$('fbSelect').value;
+        sendCtrl({kind:'fb', val});
+        awaitingFeedback=false; toggleFeedback(false);
+      }
+      break;
   }
 });
-document.addEventListener('change', function(ev){
-  var id=(ev.target&&ev.target.id)||'';
+document.addEventListener('change', ev=>{
+  const id=ev.target && ev.target.id || '';
   if(id==='fileSpec' && isServer){
-    var file=(ev.target.files&&ev.target.files[0])?ev.target.files[0]:null; if(!file) return;
-    fileToDataUrl(file).then(function(u){ setSpecchio(u); sendCtrl({kind:'spec',dataUrl:u}); ev.target.value=''; });
-  }
+    const f=ev.target.files?.[0]; if(!f) return;
+    fileToDataUrl(f).then(u=>{ setSpecchio(u); sendCtrl({kind:'spec',dataUrl:u}); ev.target.value=''; awaitingFeedback=false; });
+  }else if(ev.target?.name==='role'){ applySetupRoleUI(); }
 });
-document.addEventListener('keydown', function(ev){
-  if(ev.key==='Enter' && ev.target && ev.target.id==='text'){ ev.preventDefault(); sendMessage(); }
+document.addEventListener('keydown', ev=>{
+  if(ev.key==='Enter' && ev.target?.id==='text'){ ev.preventDefault(); sendMessage(); }
 });
 
-/* UI helpers */
+/* helpers UI */
 function afterEnterMain(newSession){
   labelNames(); ensureFrame();
-  // mostra/nascondi controlli specchio per ruolo
-  var show = !!isServer;
-  ['btnSpec','btnSpecClr','fileSpec'].forEach(function(id){ var el=$(id); if(el) el.style.display = show ? '' : 'none'; });
-  if(newSession){ var cc=$('colClient'), cs=$('colServer'); if(cc) cc.innerHTML=''; if(cs) cs.innerHTML=''; setSpecchio(null); history=[]; }
+  const show = !!isServer;
+  ['btnSpec','btnSpecClr','fileSpec'].forEach(id=>{ const el=$(id); if(el) el.style.display = show ? '' : 'none'; });
+  toggleFeedback(false);
+  if(newSession){ $('colClient').innerHTML=''; $('colServer').innerHTML=''; setSpecchio(null); history=[]; }
 }
-
-/* Setup UI ruolo */
+function toggleFeedback(show){
+  const fb=$('feedbackBar');
+  if(!fb) return;
+  if(!isServer && show){ fb.style.display='flex'; }
+  else { fb.style.display='none'; }
+}
 function applySetupRoleUI(){
-  var roleEl=document.querySelector('input[name="role"]:checked');
-  var srv=!roleEl || roleEl.value==='server';
-  var room=$('room'), paste=$('btnPaste'), roomCol=$('roomCol');
-  if(srv){ if(room){ room.disabled=true; room.placeholder='(non necessario)'; room.value=''; }
-           if(paste){ paste.style.display='none'; }
-           if(roomCol){ roomCol.style.opacity='0.6'; } }
-  else   { if(room){ room.disabled=false; room.placeholder='Es. P2P-AB123'; }
-           if(paste){ paste.style.display=''; }
-           if(roomCol){ roomCol.style.opacity='1'; } }
+  const roleEl=document.querySelector('input[name="role"]:checked');
+  const srv=!roleEl || roleEl.value==='server';
+  const room=$('room'), paste=$('btnPaste'), roomCol=$('roomCol');
+  if(srv){ room.disabled=true; room.placeholder='(non necessario)'; room.value=''; paste.style.display='none'; roomCol.style.opacity='0.6'; }
+  else   { room.disabled=false; room.placeholder='Es. P2P-AB123'; paste.style.display=''; roomCol.style.opacity='1'; }
 }
-document.addEventListener('change', function(ev){ if(ev.target && ev.target.name==='role'){ applySetupRoleUI(); }});
-
-/* Avvio sessione */
 function startSession(){ setStatus('preparazione…'); hideBanner(); historyEnabled=true; setupPeer(); openSSE(currentTopic); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); setStatus('in attesa handshake…'); }
-function sendMessage(){ var t=$('text').value; if(!t) return; var side=isServer?'server':'client'; sendText(t); appendMsg(side,t); $('text').value=''; }
+function sendMessage(){ const t=$('text').value; if(!t) return; const side=isServer?'server':'client'; sendText(t); appendMsg(side,t); $('text').value=''; }
 
-/* Auto-join via URL */
-(function(){
-  var url=new URL(location.href);
-  var code=(url.searchParams.get('code')||'').trim().toUpperCase();
-  var join=(url.searchParams.get('join')==='1');
-  if(code){ var r=$('room'); if(r) r.value=code; if(join){ var radio=document.querySelector('input[name="role"][value="client"]'); if(radio) radio.checked=true; } }
-  applySetupRoleUI(); // inizializza visibilità
-})();
-
-/* Network awareness */
-window.addEventListener('offline', function(){ showBanner('Sei offline. Verifica la connessione.','warn'); });
-window.addEventListener('online', function(){ hideBanner(); if(currentTopic) openSSE(currentTopic); });
+/* auto-join + net */
+(()=>{ const url=new URL(location.href); const code=(url.searchParams.get('code')||'').trim().toUpperCase(); const join=(url.searchParams.get('join')==='1'); if(code){ $('room').value=code; if(join){ const r=document.querySelector('input[name="role"][value="client"]'); if(r) r.checked=true; } } applySetupRoleUI(); })();
+window.addEventListener('offline', ()=>showBanner('Sei offline. Verifica la connessione.','warn'));
+window.addEventListener('online',  ()=>{ hideBanner(); if(currentTopic) openSSE(currentTopic); });
 
 })(); // end IIFE
 </script>
 
 <script>
-/* cornice al load (fallback) */
-document.addEventListener('DOMContentLoaded', function(){
-  var fw=document.getElementById('frameWrap');
+/* imposta la cornice al load (fallback) */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const fw=document.getElementById('frameWrap');
   if(fw && !document.getElementById('specchio')){
     fw.style.backgroundImage='url("'+(typeof FRAME_SRC!=='undefined'?FRAME_SRC:'')+'")';
-    var s=document.createElement('div'); s.id='specchio'; fw.appendChild(s);
+    const s=document.createElement('div'); s.id='specchio'; fw.appendChild(s);
   }
 });
 </script>
