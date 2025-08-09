@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>P2P Chat — 640×640 + sfondo condiviso</title>
+  <title>P2P Chat — 640×640 + sfondo condiviso (fix compat)</title>
   <style>
     :root {
       --gap: .7rem;
@@ -47,12 +47,10 @@
     header h1 { font-size:1rem; margin:0; font-weight:600; }
     .code { font-weight:700; letter-spacing:.06em; padding:.15rem .45rem; border:1px dashed #ccd; border-radius:.4rem; background:#fff; }
 
-    /* Banner di stato */
     #banner { display:none; padding:.5rem .9rem; font-weight:600; }
     .banner-warn { background:#fff7ed; color:#92400e; border-bottom:1px solid #fde68a; }
     .banner-err  { background:#fef2f2; color:#991b1b; border-bottom:1px solid #fecaca; }
 
-    /* Barra azioni */
     #actions {
       background:#fbfbfb;
       border-bottom:1px solid #eee;
@@ -66,11 +64,7 @@
     #actions button.primary { border-color:#16a34a; background:#22c55e; color:#fff; font-weight:600; }
     #actions button:disabled { opacity:.6; cursor:not-allowed; }
 
-    /* Chat */
-    #logWrap {
-      position:relative;
-      overflow:hidden;
-    }
+    #logWrap { position:relative; overflow:hidden; }
     #log {
       position:absolute; inset:0;
       padding: .9rem .9rem 0;
@@ -79,12 +73,11 @@
       background:
         radial-gradient(#00000006 1px, transparent 1px) 0 0/12px 12px,
         var(--bg);
-      background-size: cover;            /* per lo sfondo condiviso */
+      background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
     }
 
-    /* Bubbles */
     .bubble {
       max-width: min(78%, 560px);
       padding: .55rem .7rem;
@@ -104,7 +97,6 @@
     .system { color:#475569; font-size:.85rem; text-align:center; padding:.3rem 0; }
     .system[data-prep="1"] { opacity:.9; }
 
-    /* Composer */
     .composer {
       background:#f8fafc;
       border-top:1px solid #e5e7eb;
@@ -134,7 +126,6 @@
 
     <div id="banner" role="status"></div>
 
-    <!-- Barra azioni -->
     <div id="actions">
       <button id="createBtn" title="Crea chat">Crea</button>
       <input id="joinCode" type="text" placeholder="Inserisci codice o crea" maxlength="24">
@@ -145,7 +136,6 @@
       <button id="copyLinkBtn">Copia link</button>
     </div>
 
-    <!-- Chat -->
     <div id="logWrap">
       <main id="log" aria-live="polite" aria-label="Messaggi della chat"></main>
     </div>
@@ -157,57 +147,64 @@
   </div>
 
 <script>
+/* ====== Error banner globale ====== */
+window.addEventListener('error', function (e){
+  try {
+    var msg = (e && e.message) ? e.message : 'Errore sconosciuto';
+    var where = (e && e.filename) ? (' @ ' + e.filename + ':' + e.lineno) : '';
+    showBanner('Errore script: ' + msg + where, 'err');
+    console.error('Errore globale', e);
+  } catch {}
+});
+
 /* ====== Config ====== */
-const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
-// Aggiungi TURN per reti restrittive (sostituisci con il tuo):
-const TURNS = [
+var STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
+var TURNS = [
   // { urls: 'turns:turn.tuodominio.it:5349', username: 'user', credential: 'pass' }
 ];
-const SIGNAL_BASE = 'https://ntfy.sh';
+var SIGNAL_BASE = 'https://ntfy.sh';
 
 /* ====== Stato ====== */
-let pc, dc, roomCode = null, isOfferer = false, sse, currentTopic = null;
-const selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
+var pc, dc, roomCode = null, isOfferer = false, sse, currentTopic = null;
+var selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
 
-let pendingCandidates = [];
-let remoteSet = false;
-let offerSent = false;
-let answerSent = false;
+var pendingCandidates = [];
+var remoteSet = false;
+var offerSent = false;
+var answerSent = false;
 
-let sseBackoff = 1000;      // ms
-const SSE_BACKOFF_MAX = 10000;
-let sseUp = false;
+var sseBackoff = 1000;      // ms
+var SSE_BACKOFF_MAX = 10000;
+var sseUp = false;
 
 /* ====== UI ====== */
-const $ = (id) => document.getElementById(id);
-const logEl = $('log');
-const sigPill = $('sigPill');
-const appEl = $('app');
+function $(id){ return document.getElementById(id); }
+var logEl = $('log');
+var sigPill = $('sigPill');
 
-function showBanner(text, type='warn'){
-  const el = $('banner');
+function showBanner(text, type){
+  var el = $('banner');
   el.textContent = text;
-  el.className = type === 'err' ? 'banner-err' : 'banner-warn';
+  el.className = (type === 'err') ? 'banner-err' : 'banner-warn';
   el.style.display = 'block';
 }
-function hideBanner(){ const el=$('banner'); el.style.display='none'; el.textContent=''; el.className=''; }
+function hideBanner(){ var el=$('banner'); el.style.display='none'; el.textContent=''; el.className=''; }
 
-/* Messaggi di sistema.
-   Se prep=true, il messaggio verrà rimosso automaticamente quando la connessione P2P è stabilita */
-function logSys(t, prep=false){
-  const d=document.createElement('div'); d.className='system'; d.textContent=t;
-  if (prep) d.dataset.prep = "1";
+function logSys(t, prep){
+  var d=document.createElement('div'); d.className='system'; d.textContent=t;
+  if (prep) d.setAttribute('data-prep','1');
   logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
 }
 function clearPrepMessages(){
-  [...logEl.querySelectorAll('.system[data-prep="1"]')].forEach(n => n.remove());
+  var nodes = logEl.querySelectorAll('.system[data-prep="1"]');
+  for (var i=0;i<nodes.length;i++) nodes[i].remove();
 }
 function logBubble(side, text){
-  const wrap = document.createElement('div');
+  var wrap = document.createElement('div');
   wrap.className = 'msg ' + side;
-  const bubble = document.createElement('div');
+  var bubble = document.createElement('div');
   bubble.className = 'bubble';
-  const span = document.createElement('span'); span.textContent = text;
+  var span = document.createElement('span'); span.textContent = text;
   bubble.appendChild(span);
   wrap.appendChild(bubble);
   logEl.appendChild(wrap); logEl.scrollTop = logEl.scrollHeight;
@@ -216,60 +213,71 @@ function logBubble(side, text){
 function setStatus(s){ $('status').textContent = s; }
 function setSendEnabled(en){ $('sendBtn').disabled = !en; }
 function genCode(){ return 'P2P-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
-function topic(code){ return `p2pchat-${code}`; }
-function currentBaseURL(){ const u = new URL(window.location.href); return `${u.origin}${u.pathname}`; }
-function makeInviteLink(code){ const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString(); }
-async function copyToClipboard(text){ try{ await navigator.clipboard.writeText(text); return true;} catch{ return false; }}
+function topic(code){ return 'p2pchat-' + code; }
+function currentBaseURL(){ var u = new URL(window.location.href); return (u.origin + u.pathname); }
+function makeInviteLink(code){ var u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString(); }
+function copyToClipboard(text){
+  return navigator.clipboard && navigator.clipboard.writeText
+    ? navigator.clipboard.writeText(text).then(function(){ return true; }).catch(function(){ return false; })
+    : Promise.resolve(false);
+}
 
 /* ====== Eventi UI ====== */
-$('createBtn').onclick = async () => {
+$('createBtn').onclick = function(){
   roomCode = genCode(); $('codeBox').textContent = roomCode; isOfferer = true;
-  const link = makeInviteLink(roomCode);
-  if (await copyToClipboard(link)) logSys('Link invito copiato negli appunti.', true);
-  await start(roomCode);
-  logSys('Condividi il link invito con l’altra persona.', true);
+  logSys('Creo stanza ' + roomCode + '…', true);
+  var link = makeInviteLink(roomCode);
+  copyToClipboard(link).then(function(ok){
+    if (ok) logSys('Link invito copiato negli appunti.', true);
+    start(roomCode);
+    logSys('Condividi il link invito con l’altra persona.', true);
+  });
 };
-$('joinBtn').onclick = async () => {
-  const code = $('joinCode').value.trim().toUpperCase();
+$('joinBtn').onclick = function(){
+  var code = $('joinCode').value.trim().toUpperCase();
   if (!code) return;
   roomCode = code; $('codeBox').textContent = code; isOfferer = false;
-  await start(roomCode);
+  logSys('Entrando nella stanza ' + roomCode + '…', true);
+  start(roomCode);
 };
-$('copyLinkBtn').onclick = async () => {
+$('copyLinkBtn').onclick = function(){
   if (!roomCode) return;
-  const link = makeInviteLink(roomCode);
-  if (await copyToClipboard(link)) logSys('Link copiato.', true);
+  var link = makeInviteLink(roomCode);
+  copyToClipboard(link).then(function(ok){ if (ok) logSys('Link copiato.', true); });
 };
 $('sendBtn').onclick = sendMessage;
-$('text').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
+$('text').addEventListener('keydown', function(e){ if (e.key === 'Enter') sendMessage(); });
 
 /* Sfondo condiviso */
-$('bgBtn').onclick = () => $('bgFile').click();
-$('bgFile').addEventListener('change', async (e) => {
-  const file = e.target.files?.[0];
+$('bgBtn').onclick = function(){ $('bgFile').click(); };
+$('bgFile').addEventListener('change', function(e){
+  var tgt = e.target;
+  var file = (tgt && tgt.files && tgt.files[0]) ? tgt.files[0] : null;
   if (!file) return;
-  const dataUrl = await fileToDataUrl(file);
-  applyBackground(dataUrl);
-  // invia al peer
-  sendControl({ kind:'bg', dataUrl });
-  e.target.value = '';
+  fileToDataUrl(file).then(function(dataUrl){
+    applyBackground(dataUrl);
+    sendControl({ kind:'bg', dataUrl: dataUrl });
+    tgt.value = '';
+  }).catch(function(err){
+    console.error(err);
+    showBanner('Errore nel caricare l\'immagine', 'err');
+  });
 });
-$('bgClearBtn').onclick = () => {
+$('bgClearBtn').onclick = function(){
   applyBackground(null);
   sendControl({ kind:'bg-clear' });
-});
+};
 function applyBackground(dataUrl){
   if (dataUrl) {
-    logEl.style.backgroundImage = `url("${dataUrl}")`;
+    logEl.style.backgroundImage = 'url("' + dataUrl + '")';
   } else {
     logEl.style.backgroundImage = 'none';
   }
 }
-/* Helpers file -> dataURL */
 function fileToDataUrl(file){
-  return new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(fr.result);
+  return new Promise(function(resolve, reject){
+    var fr = new FileReader();
+    fr.onload = function(){ resolve(fr.result); };
     fr.onerror = reject;
     fr.readAsDataURL(file);
   });
@@ -278,16 +286,15 @@ function fileToDataUrl(file){
 /* ====== Messaggi ====== */
 function sendControl(obj){
   if (!dc || dc.readyState !== 'open') return;
-  dc.send(JSON.stringify({ t:'ctrl', ...obj }));
+  try { dc.send(JSON.stringify(Object.assign({ t:'ctrl' }, obj))); } catch(e){}
 }
 function sendText(text){
   if (!dc || dc.readyState !== 'open') return;
-  dc.send(JSON.stringify({ t:'txt', text }));
+  try { dc.send(JSON.stringify({ t:'txt', text: text })); } catch(e){}
 }
 function handleIncoming(raw){
-  // Supporta sia JSON (nuovo) che testo semplice (compat)
   try {
-    const msg = JSON.parse(raw);
+    var msg = JSON.parse(raw);
     if (msg.t === 'txt') {
       logBubble('peer', msg.text);
     } else if (msg.t === 'ctrl') {
@@ -299,7 +306,6 @@ function handleIncoming(raw){
         logSys('Sfondo rimosso dal peer.');
       }
     } else {
-      // ignora o mostra raw
       logBubble('peer', raw);
     }
   } catch {
@@ -307,7 +313,7 @@ function handleIncoming(raw){
   }
 }
 function sendMessage(){
-  const text = $('text').value;
+  var text = $('text').value;
   if (!text) return;
   sendText(text);
   logBubble('me', text);
@@ -315,12 +321,12 @@ function sendMessage(){
 }
 
 /* ====== Avvio ====== */
-async function start(code){
+function start(code){
   setStatus('preparazione…');
   hideBanner();
   setupPeer();
-  openSSE(topic(code));           // apre SSE con backoff
-  await publish({ t:'hello' });   // annuncia presenza
+  openSSE(topic(code));
+  publish({ t:'hello' });
   logSys('Collegamento al signaling…', true);
   logSys('In attesa handshake…', true);
   setStatus('in attesa handshake…');
@@ -330,10 +336,10 @@ async function start(code){
 function setupPeer(){
   pendingCandidates = []; remoteSet = false; offerSent = false; answerSent = false;
 
-  pc = new RTCPeerConnection({ iceServers: [...STUNS, ...TURNS], iceTransportPolicy: 'all' });
+  pc = new RTCPeerConnection({ iceServers: STUNS.concat(TURNS), iceTransportPolicy: 'all' });
 
-  pc.oniceconnectionstatechange = () => {
-    const st = pc.iceConnectionState;
+  pc.oniceconnectionstatechange = function(){
+    var st = pc.iceConnectionState;
     if (st === 'failed' || st === 'disconnected') {
       showBanner('Connessione al peer interrotta. Sto tentando di riprendere…', 'err');
     }
@@ -342,14 +348,14 @@ function setupPeer(){
     }
   };
 
-  pc.onconnectionstatechange = () => {
-    const st = pc.connectionState;
+  pc.onconnectionstatechange = function(){
+    var st = pc.connectionState;
     if (st === 'connected'){
       setStatus('P2P connesso'); setSendEnabled(true);
-      clearPrepMessages(); // <- rimuovi i messaggi di preparazione
+      clearPrepMessages();
       hideBanner();
       logSys('Chat pronta.');
-    } else if (['disconnected','failed'].includes(st)){
+    } else if (st === 'disconnected' || st === 'failed'){
       setStatus('connessione persa'); setSendEnabled(false);
       showBanner('Peer non raggiungibile al momento.', 'err');
     }
@@ -359,96 +365,107 @@ function setupPeer(){
     dc = pc.createDataChannel('chat');
     wireDC(dc);
   } else {
-    pc.ondatachannel = (ev) => { dc = ev.channel; wireDC(dc); };
+    pc.ondatachannel = function(ev){ dc = ev.channel; wireDC(dc); };
   }
 
-  pc.onicecandidate = (ev) => { if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate }); };
+  pc.onicecandidate = function(ev){
+    if (ev && ev.candidate) publish({ t:'candidate', candidate: ev.candidate });
+  };
 }
 
 function wireDC(ch){
-  ch.onopen  = () => { setSendEnabled(true); hideBanner(); };
-  ch.onclose = () => { setSendEnabled(false); showBanner('Il peer ha chiuso la chat.', 'err'); };
-  ch.onmessage = (ev) => handleIncoming(ev.data);
+  ch.onopen  = function(){ setSendEnabled(true); hideBanner(); };
+  ch.onclose = function(){ setSendEnabled(false); showBanner('Il peer ha chiuso la chat.', 'err'); };
+  ch.onmessage = function(ev){ handleIncoming(ev.data); };
 }
 
 /* ====== Signaling (SSE con auto-reconnect) ====== */
 function openSSE(tpc){
   currentTopic = tpc;
-  if (sse) { sse.close(); sse = null; }
-  const url = `${SIGNAL_BASE}/${tpc}/sse`;
+  if (sse) { try { sse.close(); } catch(e){} sse = null; }
+  var url = SIGNAL_BASE + '/' + tpc + '/sse';
   sse = new EventSource(url);
-  sse.onopen = () => {
+  sse.onopen = function(){
     sseUp = true; sseBackoff = 1000; sigPill.style.background='#dcfce7'; sigPill.style.border='1px solid #86efac';
     logSys('Collegato al signaling', true); hideBanner();
   };
-  sse.onerror = () => {
+  sse.onerror = function(){
     if (sseUp) { showBanner('Signaling disconnesso. Riconnessione in corso…', 'warn'); }
     sseUp = false; sigPill.style.background='#fde68a'; sigPill.style.border='1px solid #fbbf24';
-    try { sse.close(); } catch {}
-    setTimeout(() => openSSE(tpc), sseBackoff);
-    sseBackoff = Math.min(SSE_BACKOFF_MAX, sseBackoff * 1.8);
+    try { sse.close(); } catch(e){}
+    setTimeout(function(){ openSSE(tpc); }, sseBackoff);
+    sseBackoff = Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff * 1.8));
   };
-  sse.onmessage = async (ev) => {
+  sse.onmessage = function(ev){
     try {
-      const envelope = JSON.parse(ev.data);
+      var envelope = JSON.parse(ev.data);
       if (!envelope || typeof envelope.message !== 'string') return;
-      const msg = JSON.parse(envelope.message);
+      var msg = JSON.parse(envelope.message);
       if (!msg || msg.from === selfId) return;
-      await handleSignal(msg);
+      handleSignal(msg);
     } catch (e) { console.warn('SSE parse error', e); }
   };
 }
 
-async function publish(obj){
-  if (!roomCode) return;
-  const body = JSON.stringify({ ...obj, from: selfId });
-  return fetch(`${SIGNAL_BASE}/${topic(roomCode)}`, {
+function publish(obj){
+  if (!roomCode) return Promise.resolve();
+  var body = JSON.stringify(Object.assign({}, obj, { from: selfId }));
+  return fetch(SIGNAL_BASE + '/' + topic(roomCode), {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    body
-  }).catch(()=>{ /* il server potrebbe essere giù: l’auto-reconnect SSE ci riallinea */ });
+    body: body
+  }).catch(function(){});
 }
 
-async function maybeSendOffer(){
+function maybeSendOffer(){
   if (!isOfferer || offerSent) return;
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await publish({ t:'offer', sdp: pc.localDescription });
-  offerSent = true;
-  logSys('Offer inviata.', true);
+  pc.createOffer().then(function(offer){
+    return pc.setLocalDescription(offer);
+  }).then(function(){
+    return publish({ t:'offer', sdp: pc.localDescription });
+  }).then(function(){
+    offerSent = true;
+    logSys('Offer inviata.', true);
+  }).catch(function(e){ console.error(e); });
 }
 
-async function handleSignal(msg){
+function handleSignal(msg){
   if (msg.t === 'hello') {
     logSys('Peer presente.', true);
-    await maybeSendOffer();
+    maybeSendOffer();
 
   } else if (msg.t === 'offer') {
-    await pc.setRemoteDescription(msg.sdp);
-    remoteSet = true;
-    for (const c of pendingCandidates) {
-      try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate buffered fail', e); }
-    }
-    pendingCandidates = [];
-    if (!answerSent) {
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      await publish({ t:'answer', sdp: pc.localDescription });
-      answerSent = true;
-      logSys('Answer inviata.', true);
-    }
+    pc.setRemoteDescription(msg.sdp).then(function(){
+      remoteSet = true;
+      // svuota buffer
+      var i; for (i=0;i<pendingCandidates.length;i++){
+        pc.addIceCandidate(pendingCandidates[i]).catch(function(e){ console.warn('addIceCandidate buffered fail', e); });
+      }
+      pendingCandidates = [];
+      if (!answerSent) {
+        return pc.createAnswer().then(function(ans){
+          return pc.setLocalDescription(ans);
+        }).then(function(){
+          return publish({ t:'answer', sdp: pc.localDescription });
+        }).then(function(){
+          answerSent = true;
+          logSys('Answer inviata.', true);
+        });
+      }
+    }).catch(function(e){ console.error(e); });
 
   } else if (msg.t === 'answer') {
-    await pc.setRemoteDescription(msg.sdp);
-    remoteSet = true;
-    for (const c of pendingCandidates) {
-      try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate buffered fail', e); }
-    }
-    pendingCandidates = [];
+    pc.setRemoteDescription(msg.sdp).then(function(){
+      remoteSet = true;
+      var i; for (i=0;i<pendingCandidates.length;i++){
+        pc.addIceCandidate(pendingCandidates[i]).catch(function(e){ console.warn('addIceCandidate buffered fail', e); });
+      }
+      pendingCandidates = [];
+    }).catch(function(e){ console.error(e); });
 
   } else if (msg.t === 'candidate') {
     if (remoteSet && pc.remoteDescription) {
-      try { await pc.addIceCandidate(msg.candidate); } catch (e) { console.warn('addIceCandidate fail', e); }
+      pc.addIceCandidate(msg.candidate).catch(function(e){ console.warn('addIceCandidate fail', e); });
     } else {
       pendingCandidates.push(msg.candidate);
     }
@@ -456,10 +473,10 @@ async function handleSignal(msg){
 }
 
 /* ====== Auto-join da URL ====== */
-(function autoFromURL(){
-  const url = new URL(window.location.href);
-  const code = (url.searchParams.get('code') || '').trim().toUpperCase();
-  const join = url.searchParams.get('join') === '1';
+(function(){
+  var url = new URL(window.location.href);
+  var code = (url.searchParams.get('code') || '').trim().toUpperCase();
+  var join = url.searchParams.get('join') === '1';
   if (code) {
     $('joinCode').value = code;
     if (join) {
@@ -472,8 +489,8 @@ async function handleSignal(msg){
 })();
 
 /* ====== Network awareness ====== */
-window.addEventListener('offline', () => showBanner('Sei offline. Verifica la connessione.', 'warn'));
-window.addEventListener('online',  () => { hideBanner(); if (currentTopic) openSSE(currentTopic); });
+window.addEventListener('offline', function(){ showBanner('Sei offline. Verifica la connessione.', 'warn'); });
+window.addEventListener('online',  function(){ hideBanner(); if (currentTopic) openSSE(currentTopic); });
 
 </script>
 </body>
