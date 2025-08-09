@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>P2P Chat — 640×640 + sfondo condiviso (fix compat)</title>
+  <title>P2P Chat — 640×640 + sfondo + autoreconnect</title>
   <style>
     :root {
       --gap: .7rem;
@@ -21,8 +21,7 @@
     html, body { height:100%; }
     body {
       margin:0; background:#ececec; color:var(--txt);
-      display:grid; place-items:center;
-      padding: 1rem;
+      display:grid; place-items:center; padding: 1rem;
     }
 
     /* CONTENITORE FISSO 640x640 */
@@ -128,7 +127,7 @@
 
     <div id="actions">
       <button id="createBtn" title="Crea chat">Crea</button>
-      <input id="joinCode" type="text" placeholder="Inserisci codice o crea" maxlength="24">
+      <input id="joinCode" type="text" placeholder="Inserisci codice o crea (vx)" maxlength="24">
       <button id="joinBtn">Entra</button>
       <button id="bgBtn">Sfondo</button>
       <button id="bgClearBtn">Togli sfondo</button>
@@ -165,17 +164,29 @@ var TURNS = [
 var SIGNAL_BASE = 'https://ntfy.sh';
 
 /* ====== Stato ====== */
-var pc, dc, roomCode = null, isOfferer = false, sse, currentTopic = null;
+var pc, dc, roomCode = null, isOfferer = false, sse = null;
 var selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
 
+/* Topic base e generazione (per switch coordinati) */
+var baseTopic = null;
+var topicGen = '0';              // iniziale
+var currentTopic = null;         // baseTopic + '-' + topicGen
+
+/* Flags RTC */
 var pendingCandidates = [];
 var remoteSet = false;
 var offerSent = false;
 var answerSent = false;
 
+/* SSE backoff */
 var sseBackoff = 1000;      // ms
 var SSE_BACKOFF_MAX = 10000;
 var sseUp = false;
+
+/* Riconnessione P2P */
+var switching = false;
+var dcCloseTimer = null;
+var discTimer = null;       // debounce su 'disconnected' (2.5s)
 
 /* ====== UI ====== */
 function $(id){ return document.getElementById(id); }
@@ -214,6 +225,7 @@ function setStatus(s){ $('status').textContent = s; }
 function setSendEnabled(en){ $('sendBtn').disabled = !en; }
 function genCode(){ return 'P2P-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
 function topic(code){ return 'p2pchat-' + code; }
+function buildTopic(){ return baseTopic + '-' + topicGen; }
 function currentBaseURL(){ var u = new URL(window.location.href); return (u.origin + u.pathname); }
 function makeInviteLink(code){ var u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString(); }
 function copyToClipboard(text){
@@ -225,11 +237,12 @@ function copyToClipboard(text){
 /* ====== Eventi UI ====== */
 $('createBtn').onclick = function(){
   roomCode = genCode(); $('codeBox').textContent = roomCode; isOfferer = true;
+  baseTopic = topic(roomCode); topicGen = '0'; currentTopic = buildTopic();
   logSys('Creo stanza ' + roomCode + '…', true);
   var link = makeInviteLink(roomCode);
   copyToClipboard(link).then(function(ok){
     if (ok) logSys('Link invito copiato negli appunti.', true);
-    start(roomCode);
+    startSession();
     logSys('Condividi il link invito con l’altra persona.', true);
   });
 };
@@ -237,8 +250,9 @@ $('joinBtn').onclick = function(){
   var code = $('joinCode').value.trim().toUpperCase();
   if (!code) return;
   roomCode = code; $('codeBox').textContent = code; isOfferer = false;
+  baseTopic = topic(roomCode); topicGen = '0'; currentTopic = buildTopic();
   logSys('Entrando nella stanza ' + roomCode + '…', true);
-  start(roomCode);
+  startSession();
 };
 $('copyLinkBtn').onclick = function(){
   if (!roomCode) return;
@@ -268,11 +282,8 @@ $('bgClearBtn').onclick = function(){
   sendControl({ kind:'bg-clear' });
 };
 function applyBackground(dataUrl){
-  if (dataUrl) {
-    logEl.style.backgroundImage = 'url("' + dataUrl + '")';
-  } else {
-    logEl.style.backgroundImage = 'none';
-  }
+  if (dataUrl) { logEl.style.backgroundImage = 'url("' + dataUrl + '")'; }
+  else { logEl.style.backgroundImage = 'none'; }
 }
 function fileToDataUrl(file){
   return new Promise(function(resolve, reject){
@@ -320,30 +331,73 @@ function sendMessage(){
   $('text').value='';
 }
 
-/* ====== Avvio ====== */
-function start(code){
+/* ====== Sessione / Signaling ====== */
+function startSession(){
   setStatus('preparazione…');
   hideBanner();
   setupPeer();
-  openSSE(topic(code));
+  openSSE(currentTopic);
   publish({ t:'hello' });
   logSys('Collegamento al signaling…', true);
   logSys('In attesa handshake…', true);
   setStatus('in attesa handshake…');
 }
 
+function openSSE(tpc){
+  if (sse) { try { sse.close(); } catch(e){} sse = null; }
+  var url = SIGNAL_BASE + '/' + tpc + '/sse';
+  sse = new EventSource(url);
+  sse.onopen = function(){
+    sseUp = true; sseBackoff = 1000; sigPill.style.background='#dcfce7'; sigPill.style.border='1px solid #86efac';
+    logSys('Collegato al signaling', true); hideBanner();
+  };
+  sse.onerror = function(){
+    if (sseUp) { showBanner('Signaling disconnesso. Riconnessione in corso…', 'warn'); }
+    sseUp = false; sigPill.style.background='#fde68a'; sigPill.style.border='1px solid #fbbf24';
+    try { sse.close(); } catch {}
+    setTimeout(function(){ openSSE(tpc); }, sseBackoff);
+    sseBackoff = Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff * 1.8));
+  };
+  sse.onmessage = function(ev){
+    try {
+      var envelope = JSON.parse(ev.data);
+      if (!envelope || typeof envelope.message !== 'string') return;
+      var msg = JSON.parse(envelope.message);
+      if (!msg || msg.from === selfId) return;
+      handleSignal(msg);
+    } catch (e) { console.warn('SSE parse error', e); }
+  };
+}
+
+function publish(obj){
+  if (!roomCode) return Promise.resolve();
+  // pubblica sempre sull'argomento CORRENTE
+  var body = JSON.stringify(Object.assign({}, obj, { from: selfId }));
+  return fetch(SIGNAL_BASE + '/' + currentTopic, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: body
+  }).catch(function(){});
+}
+
 /* ====== WebRTC ====== */
 function setupPeer(){
+  // reset flags per nuova negoziazione
   pendingCandidates = []; remoteSet = false; offerSent = false; answerSent = false;
+  if (discTimer) { clearTimeout(discTimer); discTimer = null; }
 
   pc = new RTCPeerConnection({ iceServers: STUNS.concat(TURNS), iceTransportPolicy: 'all' });
 
   pc.oniceconnectionstatechange = function(){
     var st = pc.iceConnectionState;
-    if (st === 'failed' || st === 'disconnected') {
-      showBanner('Connessione al peer interrotta. Sto tentando di riprendere…', 'err');
-    }
-    if (st === 'connected' || st === 'completed') {
+    if (st === 'failed') {
+      showBanner('Connessione al peer fallita. Riprovo…', 'err');
+      requestSwitch('ice-failed');
+    } else if (st === 'disconnected') {
+      showBanner('Peer disconnesso. Attendo 2.5s prima di riprovare…', 'warn');
+      if (!discTimer) discTimer = setTimeout(function(){ requestSwitch('ice-disconnected'); }, 2500);
+    } else if (st === 'connected' || st === 'completed') {
+      if (discTimer) { clearTimeout(discTimer); discTimer = null; }
       hideBanner();
     }
   };
@@ -355,9 +409,13 @@ function setupPeer(){
       clearPrepMessages();
       hideBanner();
       logSys('Chat pronta.');
-    } else if (st === 'disconnected' || st === 'failed'){
+      switching = false; // sblocco eventuali switch
+    } else if (st === 'failed') {
+      setStatus('connessione fallita'); setSendEnabled(false);
+      requestSwitch('conn-failed');
+    } else if (st === 'disconnected') {
       setStatus('connessione persa'); setSendEnabled(false);
-      showBanner('Peer non raggiungibile al momento.', 'err');
+      // il timer su iceConnectionState gestisce il retry
     }
   };
 
@@ -375,48 +433,53 @@ function setupPeer(){
 
 function wireDC(ch){
   ch.onopen  = function(){ setSendEnabled(true); hideBanner(); };
-  ch.onclose = function(){ setSendEnabled(false); showBanner('Il peer ha chiuso la chat.', 'err'); };
+  ch.onclose = function(){
+    setSendEnabled(false);
+    showBanner('Il canale dati si è chiuso. Riprovo a connettere…', 'err');
+    if (dcCloseTimer) clearTimeout(dcCloseTimer);
+    dcCloseTimer = setTimeout(function(){ requestSwitch('dc-closed'); }, 600);
+  };
   ch.onmessage = function(ev){ handleIncoming(ev.data); };
 }
 
-/* ====== Signaling (SSE con auto-reconnect) ====== */
-function openSSE(tpc){
-  currentTopic = tpc;
-  if (sse) { try { sse.close(); } catch(e){} sse = null; }
-  var url = SIGNAL_BASE + '/' + tpc + '/sse';
-  sse = new EventSource(url);
-  sse.onopen = function(){
-    sseUp = true; sseBackoff = 1000; sigPill.style.background='#dcfce7'; sigPill.style.border='1px solid #86efac';
-    logSys('Collegato al signaling', true); hideBanner();
-  };
-  sse.onerror = function(){
-    if (sseUp) { showBanner('Signaling disconnesso. Riconnessione in corso…', 'warn'); }
-    sseUp = false; sigPill.style.background='#fde68a'; sigPill.style.border='1px solid #fbbf24';
-    try { sse.close(); } catch(e){}
-    setTimeout(function(){ openSSE(tpc); }, sseBackoff);
-    sseBackoff = Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff * 1.8));
-  };
-  sse.onmessage = function(ev){
-    try {
-      var envelope = JSON.parse(ev.data);
-      if (!envelope || typeof envelope.message !== 'string') return;
-      var msg = JSON.parse(envelope.message);
-      if (!msg || msg.from === selfId) return;
-      handleSignal(msg);
-    } catch (e) { console.warn('SSE parse error', e); }
-  };
+/* ====== Riconnessione coordinata (topic switching) ====== */
+function requestSwitch(reason){
+  if (switching) return;
+  switching = true;
+
+  if (isOfferer) {
+    // L'offerer coordina: genera nuova "generazione" del topic e annuncia lo switch
+    var newGen = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,6);
+    publish({ t:'switch', gen: newGen, why: reason }).then(function(){
+      // Applica lo switch lato locale dopo un attimo per assicurare la consegna del messaggio
+      setTimeout(function(){ applySwitch(newGen); }, 150);
+    }).catch(function(){ setTimeout(function(){ applySwitch(newGen); }, 250); });
+  } else {
+    // Il joiner chiede lo switch; l'offerer deciderà la nuova generazione
+    publish({ t:'need-switch', why: reason }).catch(function(){});
+  }
 }
 
-function publish(obj){
-  if (!roomCode) return Promise.resolve();
-  var body = JSON.stringify(Object.assign({}, obj, { from: selfId }));
-  return fetch(SIGNAL_BASE + '/' + topic(roomCode), {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    body: body
-  }).catch(function(){});
+function applySwitch(newGen){
+  // Chiudi peer corrente e prepara nuova sessione su nuovo topic
+  cleanupPeer();
+  topicGen = newGen;
+  currentTopic = buildTopic();
+  openSSE(currentTopic);
+  setupPeer();
+  publish({ t:'hello' });
+  setStatus('riconnessione…');
+  logSys('Riconnessione in corso…', true);
 }
 
+function cleanupPeer(){
+  try { if (dc) { dc.onopen = dc.onclose = dc.onmessage = null; dc.close(); } } catch(e){}
+  try { if (pc) { pc.oniceconnectionstatechange = pc.onconnectionstatechange = pc.ondatachannel = null; pc.close(); } } catch(e){}
+  dc = null; pc = null;
+  pendingCandidates = []; remoteSet = false; offerSent = false; answerSent = false;
+}
+
+/* ====== Gestione signaling ====== */
 function maybeSendOffer(){
   if (!isOfferer || offerSent) return;
   pc.createOffer().then(function(offer){
@@ -434,10 +497,20 @@ function handleSignal(msg){
     logSys('Peer presente.', true);
     maybeSendOffer();
 
+  } else if (msg.t === 'need-switch') {
+    // Se sono offerer, decido io nuova generazione
+    if (isOfferer) requestSwitch('asked-by-joiner');
+
+  } else if (msg.t === 'switch') {
+    // Applica nuova generazione comunicata dall'offerer
+    if (msg.gen && typeof msg.gen === 'string') {
+      applySwitch(msg.gen);
+    }
+
   } else if (msg.t === 'offer') {
     pc.setRemoteDescription(msg.sdp).then(function(){
       remoteSet = true;
-      // svuota buffer
+      // flush buffer
       var i; for (i=0;i<pendingCandidates.length;i++){
         pc.addIceCandidate(pendingCandidates[i]).catch(function(e){ console.warn('addIceCandidate buffered fail', e); });
       }
@@ -483,7 +556,8 @@ function handleSignal(msg){
       isOfferer = false;
       roomCode = code;
       $('codeBox').textContent = code;
-      start(code);
+      baseTopic = topic(roomCode); topicGen = '0'; currentTopic = buildTopic();
+      startSession();
     }
   }
 })();
