@@ -3,176 +3,268 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>P2P Chat — 1 file</title>
+  <title>P2P Chat — UI + avvisi</title>
   <style>
-    :root { --gap:.6rem; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
-    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
-    h1 { font-size:1.1rem; margin:0; }
-    .row { display:flex; gap:var(--gap); margin-bottom:var(--gap); }
-    input[type=text], input[readonly]{ flex:1; padding:.6rem .7rem; border:1px solid #d0d7de; border-radius:.5rem; }
-    button{ padding:.6rem 1rem; border:1px solid #d0d7de; background:#fff; border-radius:.5rem; cursor:pointer; }
-    button:disabled{ opacity:.6; cursor:not-allowed; }
-    #codeBox{ font-weight:700; letter-spacing:.08em; padding:.2rem .5rem; border:1px dashed #ccd; border-radius:.4rem; }
-    #status{ color:#555; font-size:.95rem; }
-    #log{ height:320px; border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem; overflow:auto; background:#fafafa; }
-    .msg{ padding:.2rem 0; }
-    .msg.me{ text-align:right; }
-    .msg.peer{ text-align:left; }
-    .system{ color:#666; font-size:.9rem; }
-    footer{ margin-top:1rem; color:#6b7280; font-size:.85rem; }
-    .muted { color:#6b7280; font-size:.9rem; }
+    :root {
+      --gap: .7rem;
+      --bg: #e5ddd5;              /* sfondo tipo WhatsApp */
+      --me: #d1f1c9;              /* balloon mio */
+      --peer: #ffffff;            /* balloon peer */
+      --txt: #111827;
+      --muted:#6b7280;
+      --border:#d0d7de;
+      --accent:#22c55e;
+      --danger:#ef4444;
+      --warn:#f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--txt);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100svh;
+    }
+    header {
+      background: #f8fafc;
+      border-bottom: 1px solid #e5e7eb;
+      padding: .6rem .9rem;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    header h1 { font-size:1rem; margin:0; font-weight:600; }
+    .code { font-weight:700; letter-spacing:.06em; padding:.15rem .45rem; border:1px dashed #ccd; border-radius:.4rem; background:#fff; }
+
+    #banner {
+      display:none; padding:.6rem .9rem; font-weight:600;
+    }
+    .banner-warn { background:#fff7ed; color:#92400e; border-bottom:1px solid #fde68a; }
+    .banner-err  { background:#fef2f2; color:#991b1b; border-bottom:1px solid #fecaca; }
+
+    #log {
+      padding: .9rem .9rem 0;
+      overflow:auto;
+      display:flex;
+      flex-direction: column;
+      gap: .35rem;
+      /* sfondo chat chiaro */
+      background:
+        radial-gradient(#00000006 1px, transparent 1px) 0 0/12px 12px,
+        var(--bg);
+    }
+    .row { display:flex; gap:var(--gap); }
+
+    /* Bubbles */
+    .bubble {
+      max-width: min(78%, 560px);
+      padding: .55rem .7rem .45rem .7rem;
+      border-radius: .9rem;
+      position: relative;
+      box-shadow: 0 1px 0 rgba(0,0,0,.05);
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      line-height: 1.25;
+      display:inline-block;
+    }
+    .msg { display:flex; padding: .05rem .3rem; }
+    .msg.peer { justify-content:flex-start; }
+    .msg.me   { justify-content:flex-end; }
+    .msg.peer .bubble { background: var(--peer); border:1px solid #eef2f7; border-top-left-radius:.2rem; }
+    .msg.me   .bubble { background: var(--me);   border:1px solid #cfe9c7; border-top-right-radius:.2rem; }
+    .meta {
+      display:block; text-align:right; font-size:.72rem; color: var(--muted); margin-top:.2rem;
+    }
+    .system { color:#475569; font-size:.85rem; text-align:center; padding:.3rem 0; }
+
+    /* Composer */
+    .composer {
+      background:#f8fafc;
+      border-top:1px solid #e5e7eb;
+      padding:.6rem .6rem;
+      display:flex; gap:.5rem; align-items:center;
+    }
+    #text {
+      flex:1; padding:.6rem .8rem; border:1px solid var(--border);
+      border-radius: 999px; outline: none; background:#fff;
+    }
+    #sendBtn {
+      padding:.6rem 1rem; border:1px solid #16a34a; background:#22c55e; color:#fff;
+      border-radius:999px; cursor:pointer; font-weight:600;
+    }
+    #sendBtn:disabled { opacity:.6; cursor:not-allowed; }
+    .status { color:#374151; font-size:.85rem; }
+    .pill { display:inline-block; padding:.1rem .45rem; border-radius:999px; background:#e5e7eb; font-size:.78rem; margin-left:.4rem; }
   </style>
 </head>
 <body>
   <header>
-    <h1>P2P Chat (nessuna installazione)</h1>
-    <div>Codice: <span id="codeBox">—</span></div>
+    <h1>P2P Chat</h1>
+    <div class="status">Stato: <span id="status">offline</span> <span id="sigPill" class="pill" title="signaling">SSE</span></div>
+    <div>Codice: <span id="codeBox" class="code">—</span></div>
   </header>
 
-  <div class="row">
-    <button id="createBtn">Crea chat</button>
-    <input id="joinCode" type="text" placeholder="Inserisci codice" maxlength="24">
+  <div id="banner" role="status"></div>
+
+  <main id="log" aria-live="polite" aria-label="Messaggi della chat"></main>
+
+  <div class="composer">
+    <button id="createBtn" title="Crea chat">Crea</button>
+    <input id="joinCode" type="text" placeholder="Inserisci codice o crea" maxlength="24">
     <button id="joinBtn">Entra</button>
-  </div>
-
-  <div class="row" id="inviteRow" style="display:none">
-    <input id="inviteLink" type="text" readonly>
-    <button id="copyBtn">Copia</button>
-  </div>
-  <div id="inviteHint" class="muted" style="display:none">
-    Invia questo link all’altra persona: aprendo il link, il codice è già inserito e parte l’accesso.
-  </div>
-
-  <div id="status">Stato: offline</div>
-  <div id="log" aria-live="polite" aria-label="Messaggi della chat"></div>
-
-  <div class="row">
     <input id="text" type="text" placeholder="Scrivi un messaggio…">
     <button id="sendBtn" disabled>Invia</button>
   </div>
 
-  <footer>Browser↔Browser via WebRTC DataChannel. Il signaling usa un topic temporaneo pubblico su ntfy.sh.</footer>
-
 <script>
+/* ====== Config ====== */
 const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
-// Aggiungi qui TURN se serve (reti restrittive). Esempio:
-// const TURNS = [{ urls: 'turns:turn.tuodominio.it:5349', username:'user', credential:'pass' }];
-const TURNS = [];
-
+// Aggiungi TURN per reti restrittive (sostituisci con il tuo):
+const TURNS = [
+  // { urls: 'turns:turn.tuodominio.it:5349', username: 'user', credential: 'pass' }
+];
 const SIGNAL_BASE = 'https://ntfy.sh';
 
-let pc, dc, roomCode = null, isOfferer = false, sse;
+/* ====== Stato ====== */
+let pc, dc, roomCode = null, isOfferer = false, sse, currentTopic = null;
 const selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
 
-// Buffer ICE finché non abbiamo il remoteDescription
 let pendingCandidates = [];
 let remoteSet = false;
-
-// Evita doppie offer/answer
 let offerSent = false;
 let answerSent = false;
 
+let sseBackoff = 1000;      // ms
+const SSE_BACKOFF_MAX = 10000;
+let sseUp = false;
+
+/* ====== UI ====== */
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
+const sigPill = $('sigPill');
 
-function logSys(t){ append('system', t); }
-function logMsg(w,t){ append('msg '+w, t); }
-function append(cls, text){
-  const d=document.createElement('div'); d.className=cls; d.textContent=text;
+function showBanner(text, type='warn'){
+  const el = $('banner');
+  el.textContent = text;
+  el.className = type === 'err' ? 'banner-err' : 'banner-warn';
+  el.style.display = 'block';
+}
+function hideBanner(){ const el=$('banner'); el.style.display='none'; el.textContent=''; el.className=''; }
+
+function logSys(t){
+  const d=document.createElement('div'); d.className='system'; d.textContent=t;
   logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
 }
-function setStatus(s){ $('status').textContent='Stato: '+s; }
+function logBubble(side, text){
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + side;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  const span = document.createElement('span'); span.textContent = text;
+  const meta = document.createElement('span'); meta.className='meta';
+  meta.textContent = new Date().toLocaleTimeString();
+  bubble.appendChild(span); bubble.appendChild(meta);
+  wrap.appendChild(bubble);
+  logEl.appendChild(wrap); logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(s){ $('status').textContent = s; }
 function setSendEnabled(en){ $('sendBtn').disabled = !en; }
 function genCode(){ return 'P2P-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
 function topic(code){ return `p2pchat-${code}`; }
-function currentBaseURL(){
-  const u = new URL(window.location.href);
-  return `${u.origin}${u.pathname}`;
-}
-function makeInviteLink(code){
-  const u = new URL(currentBaseURL());
-  u.searchParams.set('code', code);
-  u.searchParams.set('join', '1');
-  return u.toString();
-}
-async function copyToClipboard(text){
-  try { await navigator.clipboard.writeText(text); return true; }
-  catch { return false; }
-}
+function currentBaseURL(){ const u = new URL(window.location.href); return `${u.origin}${u.pathname}`; }
+function makeInviteLink(code){ const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString(); }
+async function copyToClipboard(text){ try{ await navigator.clipboard.writeText(text); return true;} catch{ return false; }}
 
+/* ====== Eventi UI ====== */
 $('createBtn').onclick = async () => {
   roomCode = genCode(); $('codeBox').textContent = roomCode; isOfferer = true;
   const link = makeInviteLink(roomCode);
-  $('inviteLink').value = link;
-  $('inviteRow').style.display = '';
-  $('inviteHint').style.display = '';
-  $('copyBtn').onclick = async () => {
-    const ok = await copyToClipboard(link);
-    logSys(ok ? 'Link copiato negli appunti' : 'Copia non riuscita: copia manualmente.');
-  };
+  if (await copyToClipboard(link)) logSys('Link invito copiato negli appunti.');
   await start(roomCode);
   logSys('Condividi il link invito con l’altra persona.');
 };
-
 $('joinBtn').onclick = async () => {
   const code = $('joinCode').value.trim().toUpperCase();
   if (!code) return;
   roomCode = code; $('codeBox').textContent = code; isOfferer = false;
   await start(roomCode);
 };
+$('sendBtn').onclick = sendMessage;
+$('text').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage(); });
 
-$('sendBtn').onclick = () => {
+/* ====== Messaggi ====== */
+function sendMessage(){
   const text = $('text').value;
   if (!text || !dc || dc.readyState !== 'open') return;
-  dc.send(text); logMsg('me', text); $('text').value='';
-};
-$('text').addEventListener('keydown', e => { if (e.key === 'Enter') $('sendBtn').click(); });
+  dc.send(text); logBubble('me', text); $('text').value='';
+}
 
+/* ====== Avvio ====== */
 async function start(code){
   setStatus('preparazione…');
+  hideBanner();
   setupPeer();
-  // 1) Apri SSE prima di qualunque offer/answer
-  subscribeSSE(topic(code));
-  // 2) Annuncia presenza (stretta di mano)
-  await publish({ t:'hello' });
+  openSSE(topic(code));           // apre SSE con backoff
+  await publish({ t:'hello' });   // annuncia presenza
   setStatus('in attesa handshake…');
 }
 
+/* ====== WebRTC ====== */
 function setupPeer(){
+  pendingCandidates = []; remoteSet = false; offerSent = false; answerSent = false;
+
   pc = new RTCPeerConnection({ iceServers: [...STUNS, ...TURNS], iceTransportPolicy: 'all' });
 
-  pc.oniceconnectionstatechange = () => logSys('iceConnectionState: ' + pc.iceConnectionState);
+  pc.oniceconnectionstatechange = () => {
+    const st = pc.iceConnectionState;
+    if (st === 'failed' || st === 'disconnected') {
+      showBanner('Connessione al peer interrotta. Sto tentando di riprendere…', 'err');
+    }
+    if (st === 'connected' || st === 'completed') {
+      hideBanner();
+    }
+  };
+
   pc.onconnectionstatechange = () => {
-    logSys('connectionState: ' + pc.connectionState);
-    if (pc.connectionState === 'connected'){ setStatus('P2P connesso'); setSendEnabled(true); logSys('Chat pronta.'); }
-    else if (['disconnected','failed'].includes(pc.connectionState)){ setStatus('connessione persa'); setSendEnabled(false); }
+    const st = pc.connectionState;
+    if (st === 'connected'){ setStatus('P2P connesso'); setSendEnabled(true); logSys('Chat pronta.'); hideBanner(); }
+    else if (['disconnected','failed'].includes(st)){ setStatus('connessione persa'); setSendEnabled(false); showBanner('Peer non raggiungibile al momento.', 'err'); }
   };
 
   if (isOfferer) {
-    // Crea il datachannel PRIMA dell'offer
     dc = pc.createDataChannel('chat');
     wireDC(dc);
   } else {
     pc.ondatachannel = (ev) => { dc = ev.channel; wireDC(dc); };
   }
 
-  pc.onicecandidate = (ev) => {
-    if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate });
-  };
+  pc.onicecandidate = (ev) => { if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate }); };
 }
 
 function wireDC(ch){
-  ch.onopen  = () => { logSys('Canale aperto'); setSendEnabled(true); };
-  ch.onclose = () => { logSys('Canale chiuso'); setSendEnabled(false); };
-  ch.onmessage = (ev) => logMsg('peer', ev.data);
+  ch.onopen  = () => { logSys('Canale aperto'); setSendEnabled(true); hideBanner(); };
+  ch.onclose = () => { logSys('Canale chiuso'); setSendEnabled(false); showBanner('Il peer ha chiuso la chat.', 'err'); };
+  ch.onmessage = (ev) => logBubble('peer', ev.data);
 }
 
-function subscribeSSE(tpc){
-  if (sse) sse.close();
+/* ====== Signaling (SSE con auto-reconnect) ====== */
+function openSSE(tpc){
+  currentTopic = tpc;
+  if (sse) { sse.close(); sse = null; }
   sse = new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
-  sse.onopen = () => logSys('Collegato al signaling');
-  sse.onerror = () => logSys('Errore signaling (ritento)');
+  sse.onopen = () => {
+    sseUp = true; sseBackoff = 1000; sigPill.style.background='#dcfce7'; sigPill.style.border='1px solid #86efac';
+    logSys('Collegato al signaling'); hideBanner();
+  };
+  sse.onerror = () => {
+    if (sseUp) { showBanner('Signaling disconnesso. Riconnessione in corso…', 'warn'); }
+    sseUp = false; sigPill.style.background='#fde68a'; sigPill.style.border='1px solid #fbbf24';
+    // tenta reconnect con backoff
+    try { sse.close(); } catch {}
+    setTimeout(() => openSSE(tpc), sseBackoff);
+    sseBackoff = Math.min(SSE_BACKOFF_MAX, sseBackoff * 1.8);
+  };
   sse.onmessage = async (ev) => {
     try {
       const envelope = JSON.parse(ev.data);
@@ -187,11 +279,11 @@ function subscribeSSE(tpc){
 async function publish(obj){
   if (!roomCode) return;
   const body = JSON.stringify({ ...obj, from: selfId });
-  await fetch(`${SIGNAL_BASE}/${topic(roomCode)}`, {
+  return fetch(`${SIGNAL_BASE}/${topic(roomCode)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body
-  }).catch(()=>{});
+  }).catch(()=>{ /* il server potrebbe essere giù: l’auto-reconnect SSE ci riallinea */ });
 }
 
 async function maybeSendOffer(){
@@ -206,19 +298,15 @@ async function maybeSendOffer(){
 async function handleSignal(msg){
   if (msg.t === 'hello') {
     logSys('Peer presente.');
-    // l'offerer invia l'offer SOLO dopo aver visto l'altro
     await maybeSendOffer();
 
   } else if (msg.t === 'offer') {
     await pc.setRemoteDescription(msg.sdp);
     remoteSet = true;
-
-    // svuota candidati buffered
     for (const c of pendingCandidates) {
       try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate buffered fail', e); }
     }
     pendingCandidates = [];
-
     if (!answerSent) {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -230,7 +318,6 @@ async function handleSignal(msg){
   } else if (msg.t === 'answer') {
     await pc.setRemoteDescription(msg.sdp);
     remoteSet = true;
-
     for (const c of pendingCandidates) {
       try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate buffered fail', e); }
     }
@@ -245,6 +332,7 @@ async function handleSignal(msg){
   }
 }
 
+/* ====== Auto-join da URL ====== */
 (function autoFromURL(){
   const url = new URL(window.location.href);
   const code = (url.searchParams.get('code') || '').trim().toUpperCase();
@@ -259,6 +347,11 @@ async function handleSignal(msg){
     }
   }
 })();
+
+/* ====== Network awareness (facoltativo utile) ====== */
+window.addEventListener('offline', () => showBanner('Sei offline. Verifica la connessione.', 'warn'));
+window.addEventListener('online',  () => { hideBanner(); if (currentTopic) openSSE(currentTopic); });
+
 </script>
 </body>
 </html>
