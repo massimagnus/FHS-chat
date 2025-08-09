@@ -36,7 +36,6 @@
     <button id="joinBtn">Entra</button>
   </div>
 
-  <!-- Link invito -->
   <div class="row" id="inviteRow" style="display:none">
     <input id="inviteLink" type="text" readonly>
     <button id="copyBtn">Copia</button>
@@ -57,9 +56,17 @@
 
 <script>
 const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
+// Aggiungi qui eventuali TURN server per reti restrittive
+const TURNS = [
+  // { urls: 'turns:turn.tuodominio.it:5349', username: 'user', credential: 'pass' }
+];
 const SIGNAL_BASE = 'https://ntfy.sh';
+
 let pc, dc, roomCode = null, isOfferer = false, sse;
 const selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
+let pendingCandidates = [];
+let remoteSet = false;
+
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
 
@@ -129,7 +136,13 @@ async function start(code){
 }
 
 function setupPeer(){
-  pc = new RTCPeerConnection({ iceServers: STUNS });
+  pc = new RTCPeerConnection({ iceServers: [...STUNS, ...TURNS], iceTransportPolicy: 'all' });
+  pc.oniceconnectionstatechange = () => logSys('iceConnectionState: ' + pc.iceConnectionState);
+  pc.onconnectionstatechange = () => {
+    logSys('connectionState: ' + pc.connectionState);
+    if (pc.connectionState === 'connected'){ setStatus('P2P connesso'); setSendEnabled(true); logSys('Chat pronta.'); }
+    else if (['disconnected','failed'].includes(pc.connectionState)){ setStatus('connessione persa'); setSendEnabled(false); }
+  };
   if (isOfferer) {
     dc = pc.createDataChannel('chat');
     wireDC(dc);
@@ -138,10 +151,6 @@ function setupPeer(){
   }
   pc.onicecandidate = (ev) => {
     if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate });
-  };
-  pc.onconnectionstatechange = () => {
-    if (pc.connectionState === 'connected'){ setStatus('P2P connesso'); setSendEnabled(true); logSys('Chat pronta.'); }
-    else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed'){ setStatus('connessione persa'); setSendEnabled(false); }
   };
 }
 
@@ -163,7 +172,7 @@ function subscribeSSE(tpc){
       const msg = JSON.parse(envelope.message);
       if (!msg || msg.from === selfId) return;
       await handleSignal(msg);
-    } catch {}
+    } catch (e) { console.warn('SSE parse error', e); }
   };
 }
 
@@ -172,6 +181,7 @@ async function publish(obj){
   const body = JSON.stringify({ ...obj, from: selfId });
   await fetch(`${SIGNAL_BASE}/${topic(roomCode)}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body
   }).catch(()=>{});
 }
@@ -179,13 +189,27 @@ async function publish(obj){
 async function handleSignal(msg){
   if (msg.t === 'offer') {
     await pc.setRemoteDescription(msg.sdp);
+    remoteSet = true;
+    for (const c of pendingCandidates) {
+      try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate buffered fail', e); }
+    }
+    pendingCandidates = [];
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     await publish({ t:'answer', sdp: pc.localDescription });
   } else if (msg.t === 'answer') {
     await pc.setRemoteDescription(msg.sdp);
+    remoteSet = true;
+    for (const c of pendingCandidates) {
+      try { await pc.addIceCandidate(c); } catch (e) { console.warn('addIceCandidate buffered fail', e); }
+    }
+    pendingCandidates = [];
   } else if (msg.t === 'candidate') {
-    try { await pc.addIceCandidate(msg.candidate); } catch {}
+    if (remoteSet && pc.remoteDescription) {
+      try { await pc.addIceCandidate(msg.candidate); } catch (e) { console.warn('addIceCandidate fail', e); }
+    } else {
+      pendingCandidates.push(msg.candidate);
+    }
   }
 }
 
