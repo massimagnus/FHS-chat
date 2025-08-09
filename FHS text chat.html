@@ -59,4 +59,123 @@ const logEl = $('log');
 function logSys(t){ append('system', t); }
 function logMsg(w,t){ append('msg '+w, t); }
 function append(cls, text){
-  const d=document.createEleme
+  const d=document.createElement('div'); d.className=cls; d.textContent=text;
+  logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight;
+}
+function setStatus(s){ $('status').textContent='Stato: '+s; }
+function setSendEnabled(en){ $('sendBtn').disabled = !en; }
+
+/* ======== UI ======== */
+$('createBtn').onclick = async () => {
+  roomCode = genCode(); $('codeBox').textContent = roomCode; isOfferer = true;
+  await start(roomCode);
+  logSys('Condividi il codice e attendi il peer.');
+};
+$('joinBtn').onclick = async () => {
+  const code = $('joinCode').value.trim().toUpperCase();
+  if (!code) return;
+  roomCode = code; $('codeBox').textContent = code; isOfferer = false;
+  await start(roomCode);
+};
+
+$('sendBtn').onclick = () => {
+  const text = $('text').value;
+  if (!text || !dc || dc.readyState !== 'open') return;
+  dc.send(text); logMsg('me', text); $('text').value='';
+};
+$('text').addEventListener('keydown', e => { if (e.key === 'Enter') $('sendBtn').click(); });
+
+/* ======== CORE ======== */
+function genCode(){
+  const s = Math.random().toString(36).slice(2,7).toUpperCase();
+  return 'P2P-' + s;
+}
+function topic(code){ return `p2pchat-${code}`; }
+
+async function start(code){
+  setStatus('preparazione…');
+  setupPeer();
+  // subscribe to signaling stream (SSE)
+  subscribeSSE(topic(code));
+  // only the offerer triggers negotiation
+  if (isOfferer) {
+    // in some browsers, createOffer should follow onnegotiationneeded
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await publish({ t:'offer', sdp: pc.localDescription });
+  }
+  setStatus('in attesa handshake…');
+}
+
+function setupPeer(){
+  pc = new RTCPeerConnection({ iceServers: STUNS });
+
+  if (isOfferer) {
+    dc = pc.createDataChannel('chat');
+    wireDC(dc);
+  } else {
+    pc.ondatachannel = (ev) => { dc = ev.channel; wireDC(dc); };
+  }
+
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate });
+  };
+
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === 'connected'){ setStatus('P2P connesso'); setSendEnabled(true); logSys('Chat pronta.'); }
+    else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed'){ setStatus('connessione persa'); setSendEnabled(false); }
+  };
+}
+
+function wireDC(ch){
+  ch.onopen  = () => { logSys('Canale aperto'); setSendEnabled(true); };
+  ch.onclose = () => { logSys('Canale chiuso'); setSendEnabled(false); };
+  ch.onmessage = (ev) => logMsg('peer', ev.data);
+}
+
+/* ======== SIGNALLING via ntfy.sh (SSE + POST) ======== */
+let sse;
+function subscribeSSE(tpc){
+  if (sse) sse.close();
+  // SSE endpoint
+  sse = new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
+  sse.onopen = () => logSys('Collegato al signaling');
+  sse.onerror = () => logSys('Errore signaling (ritento se necessario)');
+
+  sse.onmessage = async (ev) => {
+    try {
+      const envelope = JSON.parse(ev.data); // metadati ntfy
+      // Il payload reale è in envelope.message (stringa)
+      if (!envelope || typeof envelope.message !== 'string') return;
+      const msg = JSON.parse(envelope.message);
+      if (!msg || msg.from === selfId) return; // ignora i propri
+      await handleSignal(msg);
+    } catch { /* noop */ }
+  };
+}
+
+async function publish(obj){
+  if (!roomCode) return;
+  const body = JSON.stringify({ ...obj, from: selfId });
+  await fetch(`${SIGNAL_BASE}/${topic(roomCode)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  }).catch(()=>{});
+}
+
+async function handleSignal(msg){
+  if (msg.t === 'offer') {
+    await pc.setRemoteDescription(msg.sdp);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    await publish({ t:'answer', sdp: pc.localDescription });
+  } else if (msg.t === 'answer') {
+    await pc.setRemoteDescription(msg.sdp);
+  } else if (msg.t === 'candidate') {
+    try { await pc.addIceCandidate(msg.candidate); } catch {}
+  }
+}
+</script>
+</body>
+</html>
