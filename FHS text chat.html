@@ -1,17 +1,17 @@
-<!-- P2P Chat v0.3 — contrasto + layout mockup + feedback client -->
+<!-- P2P Chat v0.4 — trim messaggi, click su Specchio, feedback con intensità -->
 <!doctype html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat v0.3 — Specchio con Cornice</title>
+<title>P2P Chat v0.4 — Specchio & Feedback</title>
 <style>
   :root{
     --bg:#000; --bar:#0b1220; --line:#1f2937; --txt:#e5e7eb;
     --bubble-me:#d4f7c8;      --bubble-me-text:#0f2e13;
     --bubble-peer:#ffffff;    --bubble-peer-text:#0b1020;
     --bubble-me-old:#b4d7aa;  --bubble-peer-old:#d9d9d9;
-    /* insets area verde della tua cornice 471×471 */
+    /* insets area verde della cornice 471×471 */
     --inset-top:16.14%; --inset-right:16.56%; --inset-bottom:16.35%; --inset-left:16.35%;
   }
   *{box-sizing:border-box} html,body{height:100%}
@@ -36,8 +36,8 @@
   .btn.primary{background:#22c55e;border-color:#16a34a;color:#052e14;font-weight:700}
   .btn:disabled{opacity:.6;cursor:not-allowed}
 
-  /* MAIN */
-  #main{grid-template-rows:auto auto auto 1fr auto}
+  /* MAIN layout (8 righe) */
+  #main{grid-template-rows:auto auto auto auto auto 1fr auto; /* header, banner, info, frame, feedback, chat(1fr), composer */}
   header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.5rem .7rem;display:flex;align-items:center;justify-content:space-between}
   .status{font-size:.9rem;color:#cbd5e1}
   .pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;background:#1f2937;font-size:.72rem;margin-left:.35rem}
@@ -49,34 +49,36 @@
   .banner-warn{background:#3b2f14;color:#fde68a;border-bottom:1px solid #a16207}
   .banner-err{background:#3a1b1b;color:#fecaca;border-bottom:1px solid #b91c1c}
 
-  /* Barra azioni (server) + feedback (client) */
-  #actions{background:#0b1220;border-bottom:1px solid var(--line);padding:.35rem .6rem;display:flex;gap:.35rem;align-items:center;flex-wrap:wrap}
-  #actions .btn{background:#0f172a;border:1px solid #334155;color:#e5e7eb}
-  #actions input[type=file]{display:none}
-  #feedbackBar{display:none;margin-left:auto;gap:.35rem;align-items:center}
-  #feedbackBar select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:.35rem .5rem}
-  #feedbackBar button{background:#22c55e;border:1px solid #16a34a;color:#052e14;border-radius:8px;padding:.35rem .6rem;font-weight:700}
+  /* info (mostra codice stanza) */
+  #info{background:#0b1220;border-bottom:1px solid var(--line);padding:.35rem .6rem;color:#9ca3af}
 
-  /* FRAME + SPECCHIO */
+  /* Cornice + Specchio (click SERVER) */
   #frameWrap{position:relative;width:100%;aspect-ratio:1/1;background-position:center;background-size:contain;background-repeat:no-repeat}
+  #frameWrap.clickable{cursor:pointer}
   #specchio{position:absolute;inset:var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
             background:#10b981;background-position:center;background-size:cover;background-repeat:no-repeat;border-radius:2px}
 
+  /* Feedback dock (sotto cornice, per client e popup server) */
+  #feedbackDock{display:none;align-items:center;justify-content:center;gap:.5rem;padding:.4rem .6rem;background:#0b1220;border-bottom:1px solid var(--line)}
+  #fbControls{display:flex;align-items:center;gap:.45rem}
+  #fbControls select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:.35rem .5rem}
+  .swatches{display:flex;gap:.25rem}
+  .swatch{width:18px;height:18px;border-radius:50%;border:1px solid #ffffff33;cursor:pointer}
+  .swatch.sel{outline:2px solid #fff}
+  #fbSend{background:#22c55e;border:1px solid #16a34a;color:#052e14;border-radius:8px;padding:.35rem .6rem;font-weight:700}
+
   /* Nomi + CHAT */
-  #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem;font-weight:800;color:#cbd5e1;font-size:.95rem}
+  #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem .1rem;font-weight:800;color:#cbd5e1;font-size:.95rem}
   #names div{text-align:center}
-  #chat{display:grid;grid-template-rows:auto 1fr;padding:.2rem .6rem .6rem}
+  #chat{display:grid;grid-template-rows:auto 1fr;padding:.2rem .6rem .4rem}
   #grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;overflow:auto}
   .colList{display:flex;flex-direction:column;gap:.3rem}
   .colList.peer{align-items:flex-start}.colList.me{align-items:flex-end}
   .colList.me .bubble{text-align:right}.colList.peer .bubble{text-align:left}
-
   .bubble{display:inline-block;max-width:90%;padding:.5rem .7rem;border-radius:.9rem;
           box-shadow:0 1px 0 rgba(0,0,0,.35);white-space:pre-wrap;line-height:1.25;transition:filter .25s,opacity .25s,transform .25s}
-  /* attivo (ultimo) con contrasto alto */
   .colList.me   .bubble.last{background:var(--bubble-me);color:var(--bubble-me-text);border:1px solid #a7e3a0;font-size:1rem;transform:scale(1)}
   .colList.peer .bubble.last{background:var(--bubble-peer);color:var(--bubble-peer-text);border:1px solid #e5e7eb;font-size:1rem;transform:scale(1)}
-  /* precedenti: più piccoli, più spenti */
   .colList.me   .bubble:not(.last){background:var(--bubble-me-old);color:#122015;border:1px solid #94c789;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
   .colList.peer .bubble:not(.last){background:var(--bubble-peer-old);color:#1b1b1b;border:1px solid #c9c9c9;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
 
@@ -86,15 +88,14 @@
   #sendBtn{padding:.55rem .9rem;border:1px solid #16a34a;background:#22c55e;color:#052e14;border-radius:999px;font-weight:700}
   #sendBtn:disabled{opacity:.6;cursor:not-allowed}
 
-  /* STORIA + TOAST */
+  /* STORIA + popup server (riuso del dock) */
   #history{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
   #history .card{width:86%;max-width:480px;max-height:70%;background:#0b0f1a;border:1px solid #334155;border-radius:12px;display:flex;flex-direction:column;color:#e5e7eb}
   #history header{padding:.5rem .7rem;font-weight:700;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
   #history main{padding:.6rem .7rem;overflow:auto}
   .hrow{display:flex;gap:.5rem;margin:.15rem 0}.hwho{width:80px;font-weight:700;color:#9ca3af}.htext{flex:1}
 
-  #toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#111827;color:#e5e7eb;
-         border:1px solid #334155;border-radius:10px;padding:.45rem .7rem;display:none;z-index:5;box-shadow:0 8px 22px rgba(0,0,0,.35)}
+  #serverPop{display:none;padding:.35rem .6rem;border-radius:10px;background:#111827;color:#e5e7eb;border-left:6px solid #8b5cf6;font-weight:700}
   #jsErr{position:absolute;left:12px;right:12px;bottom:12px;background:#3a1b1b;color:#fee2e2;padding:.5rem .75rem;border:1px solid #b91c1c;border-radius:8px;display:none;font-weight:700}
 </style>
 </head>
@@ -103,7 +104,7 @@
 
   <!-- SETUP -->
   <section id="setup" class="screen active">
-    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.3</span></header>
+    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.4</span></header>
     <main>
       <div class="panel">
         <div class="row">
@@ -129,7 +130,7 @@
   <!-- MAIN -->
   <section id="main" class="screen">
     <header class="bar">
-      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.3</span></div>
+      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.4</span></div>
       <div class="controls">
         <button id="btnHistory" class="btn">STORIA</button>
         <button id="btnQuit" class="btn danger">ESCI</button>
@@ -138,15 +139,13 @@
 
     <div id="banner" role="status"></div>
 
-    <div id="actions">
-      <!-- SOLO SERVER -->
-      <button id="btnSpec" class="btn">Specchio</button>
-      <button id="btnSpecClr" class="btn">Togli specchio</button>
-      <input id="fileSpec" type="file" accept="image/*">
-      <span style="margin-left:auto;color:#9ca3af;font-size:.9rem">Codice: <strong id="codeBox">—</strong></span>
+    <div id="info">Codice: <strong id="codeBox">—</strong></div>
 
-      <!-- SOLO CLIENT (quando arriva una nuova immagine) -->
-      <div id="feedbackBar">
+    <div id="frameWrap"></div>
+
+    <!-- Dock: client = controlli feedback, server = popup "reazione" -->
+    <div id="feedbackDock">
+      <div id="fbControls">
         <span style="color:#9ca3af">Feedback:</span>
         <select id="fbSelect">
           <option>AIUTO!</option>
@@ -156,13 +155,14 @@
           <option>DA BRIVIDI!</option>
           <option>NO GRAZIE</option>
           <option>PAURA!</option>
+          <option>SORPRESA!</option>
           <option>IMBARAZZO</option>
         </select>
+        <div class="swatches" id="fbSwatches"></div>
         <button id="fbSend">Invia</button>
       </div>
+      <div id="serverPop">reazione: …</div>
     </div>
-
-    <div id="frameWrap"></div>
 
     <div id="names"><div id="nameClient">CLIENT</div><div id="nameServer">SERVER</div></div>
 
@@ -177,54 +177,38 @@
   </section>
 
   <div id="history"><div class="card"><header>Storia conversazione <button id="btnCloseHist" class="btn">Chiudi</button></header><main id="histBody"></main></div></div>
-  <div id="toast"></div>
   <div id="jsErr"></div>
+
+  <!-- input file nascosto -->
+  <input id="fileSpec" type="file" accept="image/*" style="display:none">
 </div>
 
 <script>
-/* ====== v0.3 variabili ====== */
-const APP_VERSION = '0.3';
-const FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.3';
+/* ===== v0.4: variabili ===== */
+const APP_VERSION = '0.4';
+const FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.4';
+/* palette 7 step: grigio → porpora */
+const FB_COLORS = ['#e5e7eb','#cfd3d8','#d6d3f0','#c4b5fd','#a78bfa','#8b5cf6','#6d28d9'];
 
-/* ====== setScreen ====== */
-function setScreen(name){
-  const s=document.getElementById('setup'), m=document.getElementById('main');
-  if(s) s.classList.remove('active'); if(m) m.classList.remove('active');
-  const t=document.getElementById(name); if(t) t.classList.add('active');
-}
+/* setScreen */
+function setScreen(name){ const s=document.getElementById('setup'), m=document.getElementById('main'); s?.classList.remove('active'); m?.classList.remove('active'); document.getElementById(name)?.classList.add('active'); }
 window.setScreen=setScreen;
 
-/* ====== error banner ====== */
-window.addEventListener('error', e=>{
-  const el=document.getElementById('jsErr'); if(!el) return;
-  el.textContent='Errore script: '+(e.message||'sconosciuto')+(e.filename?(' @ '+e.filename+':'+e.lineno):'');
-  el.style.display='block';
-});
+/* error box */
+window.addEventListener('error', e=>{ const el=document.getElementById('jsErr'); if(!el) return; el.textContent='Errore script: '+(e.message||'sconosciuto')+(e.filename?(' @ '+e.filename+':'+e.lineno):''); el.style.display='block'; });
 
-/* ====== app ====== */
-(()=>{
-'use strict';
-
-const STUNS=[{urls:'stun:stun.l.google.com:19302'}];
-const TURNS=[];
-const SIGNAL_BASE='https://ntfy.sh';
-
-let pc=null, dc=null, sse=null;
-let isServer=false;
+/* ===== App ===== */
+(()=>{'use strict';
+const STUNS=[{urls:'stun:stun.l.google.com:19302'}], TURNS=[], SIGNAL_BASE='https://ntfy.sh';
+let pc=null, dc=null, sse=null, isServer=false;
 let roomCode=null, baseTopic=null, topicGen='0', currentTopic=null;
 const selfId=crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
 let pendingCandidates=[], remoteSet=false, offerSent=false, answerSent=false;
-let sseBackoff=1000, SSE_BACKOFF_MAX=10000, sseUp=false;
-let switching=false, dcCloseTimer=null, discTimer=null;
+let sseBackoff=1000, SSE_BACKOFF_MAX=10000, sseUp=false, switching=false, dcCloseTimer=null, discTimer=null;
+let myNick='Io', peerNick='Peer', history=[], historyEnabled=true;
+let stateSpec=null, awaitingFeedback=false, fbIndex=3;
 
-let myNick='Io', peerNick='Peer';
-let history=[], historyEnabled=true;
-
-/* stato specchio + feedback */
-let stateSpec=null;
-let awaitingFeedback=false;
-
-/* utils DOM */
+/* DOM helpers */
 const $=id=>document.getElementById(id);
 const showBanner=(t,kind)=>{const el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block';};
 const hideBanner=()=>{const el=$('banner'); if(!el) return; el.style.display='none'; el.textContent=''; el.className='';};
@@ -233,38 +217,26 @@ const topicBase=code=>'p2pchat-'+code;
 const buildTopic=()=> baseTopic+'-'+topicGen;
 const currentBaseURL=()=>{const u=new URL(location.href); return u.origin+u.pathname;};
 const makeInviteLink=code=>{const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); u.searchParams.set('v',APP_VERSION); return u.toString();};
-const setStatus=s=>{const el=$('status'); if(el) el.textContent=s;};
+const setStatus=s=>{$('status').textContent=s;};
 function labelNames(){ $('nameClient').textContent='CLIENT: '+(isServer?peerNick:myNick); $('nameServer').textContent='SERVER: '+(isServer?myNick:peerNick); }
-function toast(msg){const t=$('toast'); if(!t) return; t.textContent=msg; t.style.display='block'; clearTimeout(t._tm); t._tm=setTimeout(()=>{t.style.display='none'}, 3000);}
 
-/* messaggi: ultimo IN ALTO come da mockup */
+/* messaggi (trim: max 3 per colonna) */
+function trimCol(col,max=3){ while(col.children.length>max){ col.removeChild(col.lastChild); } }
 function appendMsg(side,text){
   const col=(side==='client')?$('colClient'):$('colServer'); if(!col) return;
   const last=col.querySelector('.bubble.last'); if(last) last.classList.remove('last');
   const b=document.createElement('div'); b.className='bubble last'; b.textContent=text;
   if(col.firstChild) col.insertBefore(b,col.firstChild); else col.appendChild(b);
-  const sc=col.parentElement; if(sc) sc.scrollTop=0;
+  trimCol(col,3);
   if(historyEnabled) history.push({side,text});
 }
-function redrawHistory(){
-  const body=$('histBody'); if(!body) return; body.innerHTML='';
-  for(const r of history){
-    const row=document.createElement('div'); row.className='hrow';
-    const w=document.createElement('div'); w.className='hwho'; w.textContent=r.side.toUpperCase();
-    const t=document.createElement('div'); t.className='htext'; t.textContent=r.text;
-    row.appendChild(w); row.appendChild(t); body.appendChild(row);
-  }
-}
+function redrawHistory(){ const body=$('histBody'); if(!body) return; body.innerHTML=''; for(const r of history){ const row=document.createElement('div'); row.className='hrow'; const w=document.createElement('div'); w.className='hwho'; w.textContent=r.side.toUpperCase(); const t=document.createElement('div'); t.className='htext'; t.textContent=r.text; row.appendChild(w); row.appendChild(t); body.appendChild(row);}}
 
-/* specchio + frame */
-function ensureFrame(){
-  const wrap=$('frameWrap'); if(!wrap) return;
-  wrap.style.backgroundImage='url("'+FRAME_SRC+'")';
-  if(!$('specchio')){ const s=document.createElement('div'); s.id='specchio'; wrap.appendChild(s); }
-}
+/* Frame & Specchio */
+function ensureFrame(){ const wrap=$('frameWrap'); if(!wrap) return; wrap.style.backgroundImage='url("'+FRAME_SRC+'")'; wrap.classList.toggle('clickable', isServer); if(!$('specchio')){ const s=document.createElement('div'); s.id='specchio'; wrap.appendChild(s); } }
 function setSpecchio(u){ ensureFrame(); const s=$('specchio'); if(!s) return; s.style.backgroundImage=u?'url("'+u+'")':'none'; stateSpec=u||null; }
 
-/* helpers I/O */
+/* utils */
 const fileToDataUrl=f=>new Promise((res,rej)=>{const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(f);});
 function publish(obj){ if(!roomCode) return Promise.resolve(); const body=JSON.stringify({...obj,from:selfId}); return fetch(`${SIGNAL_BASE}/${currentTopic}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body}).catch(()=>{}); }
 
@@ -305,7 +277,7 @@ function wireDC(ch){
 }
 function maybeSendOffer(){ if(!isServer||offerSent) return; pc.createOffer().then(of=>pc.setLocalDescription(of)).then(()=>publish({t:'offer',sdp:pc.localDescription})).then(()=>offerSent=true); }
 
-/* messaging */
+/* Messaging */
 function sendText(txt){ if(!dc||dc.readyState!=='open') return; try{ dc.send(JSON.stringify({t:'txt',text:txt})); }catch{} }
 function sendCtrl(obj){ obj=obj||{}; if(dc&&dc.readyState==='open'){ try{ dc.send(JSON.stringify({t:'ctrl',...obj})); }catch{} } if(obj.kind==='quit') publish({t:'quit'}); }
 function handleIncoming(raw){
@@ -316,12 +288,11 @@ function handleIncoming(raw){
     }else if(msg.t==='ctrl'){
       if(msg.kind==='spec' && msg.dataUrl){
         setSpecchio(msg.dataUrl);
-        // lato client, mostra feedback selector
         if(!isServer){ awaitingFeedback=true; toggleFeedback(true); }
       }else if(msg.kind==='spec-clear'){
         setSpecchio(null); if(!isServer) toggleFeedback(false);
       }else if(msg.kind==='fb' && isServer){
-        toast(`Feedback dal client: ${msg.val}`);
+        serverPopup(msg.val, msg.color||FB_COLORS[3]);
       }
     }
   }catch{
@@ -329,34 +300,25 @@ function handleIncoming(raw){
   }
 }
 
-/* signaling handler + reconnect */
+/* signaling + reconnect */
 function handleSignal(msg){
   if(msg.t==='hello'){
     if(msg.nick) { peerNick=msg.nick; labelNames(); }
     if(isServer){ publish({t:'state', spec:stateSpec}); }
     maybeSendOffer();
-
   } else if(msg.t==='state'){
     if(!isServer && msg.spec){ setSpecchio(msg.spec); awaitingFeedback=true; toggleFeedback(true); }
-
   } else if(msg.t==='quit'){
     showBanner('Il peer ha lasciato la sessione.','warn'); setTimeout(()=>hardResetToSetup(),250);
-
-  } else if(msg.t==='switch'){
-    if(msg.gen) applySwitch(msg.gen);
-
-  } else if(msg.t==='need-switch'){
-    if(isServer) requestSwitch('asked-by-peer');
-
-  } else if(msg.t==='offer'){
+  } else if(msg.t==='switch'){ if(msg.gen) applySwitch(msg.gen); }
+  else if(msg.t==='need-switch'){ if(isServer) requestSwitch('asked-by-peer'); }
+  else if(msg.t==='offer'){
     pc.setRemoteDescription(msg.sdp).then(()=>{
       remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[];
       if(!answerSent){ return pc.createAnswer().then(ans=>pc.setLocalDescription(ans)).then(()=>publish({t:'answer',sdp:pc.localDescription})).then(()=>answerSent=true); }
     });
-
   } else if(msg.t==='answer'){
     pc.setRemoteDescription(msg.sdp).then(()=>{ remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[]; });
-
   } else if(msg.t==='candidate'){
     if(remoteSet && pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(()=>{}); }
     else pendingCandidates.push(msg.candidate);
@@ -369,88 +331,77 @@ function requestSwitch(why){
     publish({t:'switch',gen:newGen,why}).then(()=>setTimeout(()=>applySwitch(newGen),120)).catch(()=>setTimeout(()=>applySwitch(newGen),200));
   } else publish({t:'need-switch',why});
 }
-function applySwitch(newGen){
-  cleanupPeer(); topicGen=newGen; currentTopic=buildTopic(); openSSE(currentTopic); setupPeer();
-  publish({t:'hello',nick:myNick,role:(isServer?'server':'client')});
-  if(isServer){ publish({t:'state', spec:stateSpec}); }
-  setStatus('riconnessione…'); hideBanner();
-}
+function applySwitch(newGen){ cleanupPeer(); topicGen=newGen; currentTopic=buildTopic(); openSSE(currentTopic); setupPeer(); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); if(isServer){ publish({t:'state', spec:stateSpec}); } setStatus('riconnessione…'); hideBanner(); }
 function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch{} try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch{} dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false; }
 
-/* quit/reset */
-function hardResetToSetup(){
-  historyEnabled=false; try{ if(sse) sse.close(); }catch{} cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
+/* reset */
+function hardResetToSetup(){ historyEnabled=false; try{ sse?.close(); }catch{} cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
   $('codeBox').textContent='—'; setSpecchio(null); $('colClient').innerHTML=''; $('colServer').innerHTML='';
-  history=[]; awaitingFeedback=false; toggleFeedback(false); setStatus('offline'); setScreen('setup');
-}
+  history=[]; awaitingFeedback=false; toggleFeedback(false); setStatus('offline'); setScreen('setup'); }
 
-/* UI events */
+/* UI EVENTS */
 document.addEventListener('click', ev=>{
-  const id=ev.target && ev.target.id || '';
-  switch(id){
-    case 'btnPaste':
-      if(navigator.clipboard?.readText) navigator.clipboard.readText().then(t=>{ const r=$('room'); if(r) r.value=(t||'').trim(); });
-      break;
-    case 'btnStart': {
-      myNick=($('nickMe').value||'Io').trim();
-      const roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
-      if(isServer){
-        roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
-        setScreen('main'); afterEnterMain(true); startSession();
-        const link=makeInviteLink(roomCode); navigator.clipboard?.writeText(link).catch(()=>{});
-      }else{
-        const code=($('room').value||'').trim().toUpperCase(); if(!code){ alert('Inserisci un codice stanza'); return; }
-        roomCode=code; baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
-        setScreen('main'); afterEnterMain(true); startSession();
-      }
-    } break;
-
-    case 'btnHistory': redrawHistory(); $('history').style.display='flex'; break;
-    case 'btnCloseHist': $('history').style.display='none'; break;
-    case 'btnQuit': sendCtrl({kind:'quit'}); hardResetToSetup(); break;
-
-    case 'btnSpec': if(isServer) $('fileSpec').click(); break;
-    case 'btnSpecClr': if(isServer){ setSpecchio(null); sendCtrl({kind:'spec-clear'}); } break;
-
-    case 'sendBtn': sendMessage(); break;
-
-    case 'fbSend':
-      if(!isServer && awaitingFeedback){
-        const val=$('fbSelect').value;
-        sendCtrl({kind:'fb', val});
-        awaitingFeedback=false; toggleFeedback(false);
-      }
-      break;
+  const id=ev.target?.id||'';
+  if(id==='btnPaste'){ navigator.clipboard?.readText().then(t=>{$('room').value=(t||'').trim();}); }
+  else if(id==='btnStart'){
+    myNick=($('nickMe').value||'Io').trim();
+    const roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
+    if(isServer){
+      roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
+      setScreen('main'); afterEnterMain(true); startSession(); navigator.clipboard?.writeText(makeInviteLink(roomCode)).catch(()=>{});
+    }else{
+      const code=($('room').value||'').trim().toUpperCase(); if(!code){ alert('Inserisci un codice stanza'); return; }
+      roomCode=code; baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
+      setScreen('main'); afterEnterMain(true); startSession();
+    }
   }
+  else if(id==='btnHistory'){ redrawHistory(); $('history').style.display='flex'; }
+  else if(id==='btnCloseHist'){ $('history').style.display='none'; }
+  else if(id==='btnQuit'){ sendCtrl({kind:'quit'}); hardResetToSetup(); }
+  /* click su cornice/specchio → upload (solo server) */
+  else if(id==='frameWrap' || id==='specchio'){ if(isServer) $('fileSpec').click(); }
+  else if(id==='fbSend'){ if(!isServer && awaitingFeedback){ const val=$('fbSelect').value; const color=FB_COLORS[fbIndex]||FB_COLORS[3]; sendCtrl({kind:'fb', val, color}); awaitingFeedback=false; toggleFeedback(false); } }
 });
 document.addEventListener('change', ev=>{
-  const id=ev.target && ev.target.id || '';
-  if(id==='fileSpec' && isServer){
+  if(ev.target?.id==='fileSpec' && isServer){
     const f=ev.target.files?.[0]; if(!f) return;
     fileToDataUrl(f).then(u=>{ setSpecchio(u); sendCtrl({kind:'spec',dataUrl:u}); ev.target.value=''; awaitingFeedback=false; });
   }else if(ev.target?.name==='role'){ applySetupRoleUI(); }
 });
-document.addEventListener('keydown', ev=>{
-  if(ev.key==='Enter' && ev.target?.id==='text'){ ev.preventDefault(); sendMessage(); }
-});
+document.addEventListener('keydown', ev=>{ if(ev.key==='Enter' && ev.target?.id==='text'){ ev.preventDefault(); sendMessage(); } });
 
-/* helpers UI */
-function afterEnterMain(newSession){
-  labelNames(); ensureFrame();
-  const show = !!isServer;
-  ['btnSpec','btnSpecClr','fileSpec'].forEach(id=>{ const el=$(id); if(el) el.style.display = show ? '' : 'none'; });
-  toggleFeedback(false);
-  if(newSession){ $('colClient').innerHTML=''; $('colServer').innerHTML=''; setSpecchio(null); history=[]; }
+/* feedback UI */
+function buildSwatches(){
+  const box=$('fbSwatches'); if(!box) return; box.innerHTML='';
+  FB_COLORS.forEach((c,i)=>{ const s=document.createElement('div'); s.className='swatch'+(i===fbIndex?' sel':''); s.style.background=c; s.title=`Intensità ${i+1}/7`; s.onclick=()=>{ fbIndex=i; buildSwatches(); }; box.appendChild(s); });
 }
 function toggleFeedback(show){
-  const fb=$('feedbackBar');
-  if(!fb) return;
-  if(!isServer && show){ fb.style.display='flex'; }
-  else { fb.style.display='none'; }
+  const dock=$('feedbackDock'), ctrls=$('fbControls'), pop=$('serverPop');
+  if(isServer){
+    ctrls.style.display='none';
+    if(show) { dock.style.display='flex'; pop.style.display='block'; }
+    else     { pop.style.display='none'; if(!awaitingFeedback) dock.style.display='none'; }
+  }else{
+    pop.style.display='none';
+    dock.style.display = show ? 'flex' : 'none';
+    ctrls.style.display = show ? 'flex' : 'none';
+  }
+}
+function serverPopup(text,color){
+  const dock=$('feedbackDock'), pop=$('serverPop');
+  pop.textContent='reazione: '+text;
+  pop.style.borderLeftColor=color||FB_COLORS[3];
+  dock.style.display='flex'; pop.style.display='block';
+  clearTimeout(pop._tm); pop._tm=setTimeout(()=>{ pop.style.display='none'; dock.style.display='none'; }, 6000);
+}
+
+/* helpers */
+function afterEnterMain(newSession){
+  labelNames(); ensureFrame(); buildSwatches(); toggleFeedback(false);
+  if(newSession){ $('colClient').innerHTML=''; $('colServer').innerHTML=''; setSpecchio(null); history=[]; }
 }
 function applySetupRoleUI(){
-  const roleEl=document.querySelector('input[name="role"]:checked');
-  const srv=!roleEl || roleEl.value==='server';
+  const roleEl=document.querySelector('input[name="role"]:checked'); const srv=!roleEl || roleEl.value==='server';
   const room=$('room'), paste=$('btnPaste'), roomCol=$('roomCol');
   if(srv){ room.disabled=true; room.placeholder='(non necessario)'; room.value=''; paste.style.display='none'; roomCol.style.opacity='0.6'; }
   else   { room.disabled=false; room.placeholder='Es. P2P-AB123'; paste.style.display=''; roomCol.style.opacity='1'; }
@@ -463,11 +414,11 @@ function sendMessage(){ const t=$('text').value; if(!t) return; const side=isSer
 window.addEventListener('offline', ()=>showBanner('Sei offline. Verifica la connessione.','warn'));
 window.addEventListener('online',  ()=>{ hideBanner(); if(currentTopic) openSSE(currentTopic); });
 
-})(); // end IIFE
+})(); // fine IIFE
 </script>
 
 <script>
-/* imposta la cornice al load (fallback) */
+/* cornice al load */
 document.addEventListener('DOMContentLoaded', ()=>{
   const fw=document.getElementById('frameWrap');
   if(fw && !document.getElementById('specchio')){
