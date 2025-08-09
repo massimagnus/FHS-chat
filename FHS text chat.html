@@ -36,12 +36,14 @@
     <button id="joinBtn">Entra</button>
   </div>
 
-  <!-- Link invito generato dal creatore -->
+  <!-- Link invito -->
   <div class="row" id="inviteRow" style="display:none">
     <input id="inviteLink" type="text" readonly>
     <button id="copyBtn">Copia</button>
   </div>
-  <div id="inviteHint" class="muted" style="display:none">Invia questo link all’altra persona: aprendo il link, il codice è già inserito e parte l’accesso.</div>
+  <div id="inviteHint" class="muted" style="display:none">
+    Invia questo link all’altra persona: aprendo il link, il codice è già inserito e parte l’accesso.
+  </div>
 
   <div id="status">Stato: offline</div>
   <div id="log" aria-live="polite" aria-label="Messaggi della chat"></div>
@@ -54,17 +56,13 @@
   <footer>Browser↔Browser via WebRTC DataChannel. Il signaling usa un topic temporaneo pubblico su ntfy.sh.</footer>
 
 <script>
-/* ======== CONFIG ======== */
 const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
 const SIGNAL_BASE = 'https://ntfy.sh';
-
-/* ======== STATE ======== */
 let pc, dc, roomCode = null, isOfferer = false, sse;
 const selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
 const $ = (id) => document.getElementById(id);
 const logEl = $('log');
 
-/* ======== UI HELPERS ======== */
 function logSys(t){ append('system', t); }
 function logMsg(w,t){ append('msg '+w, t); }
 function append(cls, text){
@@ -76,14 +74,13 @@ function setSendEnabled(en){ $('sendBtn').disabled = !en; }
 function genCode(){ return 'P2P-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
 function topic(code){ return `p2pchat-${code}`; }
 function currentBaseURL(){
-  // URL senza query/hash, per link pulito
   const u = new URL(window.location.href);
   return `${u.origin}${u.pathname}`;
 }
 function makeInviteLink(code){
   const u = new URL(currentBaseURL());
   u.searchParams.set('code', code);
-  u.searchParams.set('join', '1'); // auto-join per chi riceve
+  u.searchParams.set('join', '1');
   return u.toString();
 }
 async function copyToClipboard(text){
@@ -91,19 +88,16 @@ async function copyToClipboard(text){
   catch { return false; }
 }
 
-/* ======== HANDLERS ======== */
 $('createBtn').onclick = async () => {
   roomCode = genCode(); $('codeBox').textContent = roomCode; isOfferer = true;
-  // Mostra link invito
   const link = makeInviteLink(roomCode);
   $('inviteLink').value = link;
   $('inviteRow').style.display = '';
   $('inviteHint').style.display = '';
   $('copyBtn').onclick = async () => {
     const ok = await copyToClipboard(link);
-    logSys(ok ? 'Link copiato negli appunti' : 'Copia non riuscita: copia manualmente dal campo');
+    logSys(ok ? 'Link copiato negli appunti' : 'Copia non riuscita: copia manualmente.');
   };
-
   await start(roomCode);
   logSys('Condividi il link invito con l’altra persona.');
 };
@@ -122,7 +116,6 @@ $('sendBtn').onclick = () => {
 };
 $('text').addEventListener('keydown', e => { if (e.key === 'Enter') $('sendBtn').click(); });
 
-/* ======== CORE P2P ======== */
 async function start(code){
   setStatus('preparazione…');
   setupPeer();
@@ -137,18 +130,15 @@ async function start(code){
 
 function setupPeer(){
   pc = new RTCPeerConnection({ iceServers: STUNS });
-
   if (isOfferer) {
     dc = pc.createDataChannel('chat');
     wireDC(dc);
   } else {
     pc.ondatachannel = (ev) => { dc = ev.channel; wireDC(dc); };
   }
-
   pc.onicecandidate = (ev) => {
     if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate });
   };
-
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected'){ setStatus('P2P connesso'); setSendEnabled(true); logSys('Chat pronta.'); }
     else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed'){ setStatus('connessione persa'); setSendEnabled(false); }
@@ -161,21 +151,19 @@ function wireDC(ch){
   ch.onmessage = (ev) => logMsg('peer', ev.data);
 }
 
-/* ======== SIGNALLING via ntfy.sh (SSE + POST) ======== */
 function subscribeSSE(tpc){
   if (sse) sse.close();
   sse = new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
   sse.onopen = () => logSys('Collegato al signaling');
-  sse.onerror = () => logSys('Errore signaling (ritento se necessario)');
-
+  sse.onerror = () => logSys('Errore signaling (ritento)');
   sse.onmessage = async (ev) => {
     try {
-      const envelope = JSON.parse(ev.data);              // meta ntfy
+      const envelope = JSON.parse(ev.data);
       if (!envelope || typeof envelope.message !== 'string') return;
-      const msg = JSON.parse(envelope.message);          // nostro payload
-      if (!msg || msg.from === selfId) return;           // ignora messaggi propri
+      const msg = JSON.parse(envelope.message);
+      if (!msg || msg.from === selfId) return;
       await handleSignal(msg);
-    } catch { /* noop */ }
+    } catch {}
   };
 }
 
@@ -184,7 +172,6 @@ async function publish(obj){
   const body = JSON.stringify({ ...obj, from: selfId });
   await fetch(`${SIGNAL_BASE}/${topic(roomCode)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body
   }).catch(()=>{});
 }
@@ -202,7 +189,6 @@ async function handleSignal(msg){
   }
 }
 
-/* ======== DEEPLINK: auto-join dal link ======== */
 (function autoFromURL(){
   const url = new URL(window.location.href);
   const code = (url.searchParams.get('code') || '').trim().toUpperCase();
@@ -210,7 +196,6 @@ async function handleSignal(msg){
   if (code) {
     $('joinCode').value = code;
     if (join) {
-      // auto-join come “B”
       isOfferer = false;
       roomCode = code;
       $('codeBox').textContent = code;
