@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>P2P Chat — 1 file</title>
+  <style>
+    :root { --gap:.6rem; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+    h1 { font-size:1.1rem; margin:0; }
+    .row { display:flex; gap:var(--gap); margin-bottom:var(--gap); }
+    input[type=text]{ flex:1; padding:.6rem .7rem; border:1px solid #d0d7de; border-radius:.5rem; }
+    button{ padding:.6rem 1rem; border:1px solid #d0d7de; background:#fff; border-radius:.5rem; cursor:pointer; }
+    button:disabled{ opacity:.6; cursor:not-allowed; }
+    #codeBox{ font-weight:700; letter-spacing:.08em; padding:.2rem .5rem; border:1px dashed #ccd; border-radius:.4rem; }
+    #status{ color:#555; font-size:.95rem; }
+    #log{ height:320px; border:1px solid #e5e7eb; border-radius:.5rem; padding:.5rem; overflow:auto; background:#fafafa; }
+    .msg{ padding:.2rem 0; }
+    .msg.me{ text-align:right; }
+    .msg.peer{ text-align:left; }
+    .system{ color:#666; font-size:.9rem; }
+    footer{ margin-top:1rem; color:#6b7280; font-size:.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>P2P Chat (nessuna installazione)</h1>
+    <div>Codice: <span id="codeBox">—</span></div>
+  </header>
+
+  <div class="row">
+    <button id="createBtn">Crea chat</button>
+    <input id="joinCode" type="text" placeholder="Inserisci codice" maxlength="24">
+    <button id="joinBtn">Entra</button>
+  </div>
+
+  <div id="status">Stato: offline</div>
+  <div id="log" aria-live="polite" aria-label="Messaggi della chat"></div>
+
+  <div class="row">
+    <input id="text" type="text" placeholder="Scrivi un messaggio…">
+    <button id="sendBtn" disabled>Invia</button>
+  </div>
+
+  <footer>Browser↔Browser via WebRTC DataChannel. Il signaling usa un topic temporaneo pubblico su ntfy.sh.</footer>
+
+<script>
+/* ======== CONFIG ======== */
+const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }]; // Aggiungi TURN in produzione
+const SIGNAL_BASE = 'https://ntfy.sh'; // broker pubblico per il solo signaling
+
+/* ======== STATE ======== */
+let pc, dc, roomCode = null, isOfferer = false;
+const selfId = crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
+const $ = (id) => document.getElementById(id);
+const logEl = $('log');
+
+function logSys(t){ append('system', t); }
+function logMsg(w,t){ append('msg '+w, t); }
+function append(cls, text){
+  const d=document.createEleme
