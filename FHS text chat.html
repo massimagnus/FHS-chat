@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat — menu + specchio + storia + quit (512×800 + fix setScreen)</title>
+<title>P2P Chat — 512×800, top-active bubble, sync immagini</title>
 <style>
   :root{
     --bg:#0a0a0a; --card:#e5ddd5; --bar:#f8fafc; --line:#e5e7eb;
@@ -15,7 +15,7 @@
     margin:0;background:var(--bg);display:grid;place-items:center;
     padding:1rem;color:#111827;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif
   }
-  /* DIMENSIONI FISSE RICHIESTE */
+  /* DIMENSIONI FISSE */
   #app{
     width:512px;height:800px;background:var(--card);border:1px solid #d6d3d1;
     border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.15);overflow:hidden;position:relative
@@ -64,6 +64,11 @@
   #names div{text-align:center}
   #grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;padding:.45rem .6rem;overflow:auto}
   .colList{display:flex;flex-direction:column;gap:.3rem}
+  /* allineamento verso il centro */
+  .colList.peer{align-items:flex-start}
+  .colList.me{align-items:flex-end}
+  .colList.me .bubble{ text-align:right }
+  .colList.peer .bubble{ text-align:left }
   .bubble{display:inline-block;max-width:90%;padding:.4rem .55rem;border-radius:.8rem;box-shadow:0 1px 0 rgba(0,0,0,.06);word-wrap:break-word;white-space:pre-wrap;line-height:1.25}
   .colList.me .bubble.last{background:var(--me);border:1px solid #cfe9c7;font-size:1rem}
   .colList.peer .bubble.last{background:var(--peer);border:1px solid #eef2f7;font-size:1rem}
@@ -71,7 +76,8 @@
   .colList.peer .bubble:not(.last){background:var(--peer-old);border:1px solid #dfdfdf;font-size:.85rem;opacity:.85}
 
   .composer{background:var(--bar);border-top:1px solid var(--line);padding:.5rem .6rem;display:flex;gap:.45rem;align-items:center}
-  #text{flex:1;padding:.55rem .75rem;border:1px solid #d0d7de;border-radius:999px;background:#fff}
+  #text{flex:1;padding:.55rem .75rem;border:1px solid #d0d7de;border-radius:999px;background:#fff;color:#111;caret-color:#111}
+  #text::placeholder{color:#9ca3af}
   #sendBtn{padding:.55rem .9rem;border:1px solid #16a34a;background:var(--ok);color:#fff;border-radius:999px;font-weight:700}
   #sendBtn:disabled{opacity:.6;cursor:not-allowed}
 
@@ -95,7 +101,7 @@
       <div class="panel">
         <div class="row">
           <div class="col"><label for="nickMe">Il tuo nickname</label><input id="nickMe" type="text" placeholder="Es. Marco" maxlength="24"></div>
-          <div class="col"><label for="room">Codice stanza (solo CLIENT)</label><input id="room" type="text" placeholder="Es. P2P-AB123" maxlength="24"></div>
+          <div class="col" id="roomCol"><label for="room">Codice stanza (solo CLIENT)</label><input id="room" type="text" placeholder="Es. P2P-AB123" maxlength="24"></div>
         </div>
         <div class="radio">
           <label><input type="radio" name="role" value="server" checked> SERVER (crea)</label>
@@ -153,7 +159,7 @@
 </div>
 
 <script>
-/* ========= setScreen GLOBAL (fix) ========= */
+/* ========= setScreen GLOBAL ========= */
 function setScreen(name){
   var s=document.getElementById('setup');
   var m=document.getElementById('main');
@@ -162,7 +168,7 @@ function setScreen(name){
   var t=document.getElementById(name);
   if(t) t.classList.add('active');
 }
-window.setScreen = setScreen;
+window.setScreen=setScreen;
 
 /* ========= Banner errori ========= */
 window.addEventListener('error', function(e){
@@ -192,6 +198,9 @@ var switching=false, dcCloseTimer=null, discTimer=null;
 var myNick='Io', peerNick='Peer';
 var history=[], historyEnabled=true;
 
+/* stato immagini (per sync) */
+var stateBg=null, stateSpec=null;
+
 /* --- helpers --- */
 function $(id){return document.getElementById(id)}
 function showBanner(t,kind){ var el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block'; }
@@ -203,10 +212,36 @@ function currentBaseURL(){ var u=new URL(location.href); return u.origin+u.pathn
 function makeInviteLink(code){ var u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString() }
 function setStatus(s){ var el=$('status'); if(el) el.textContent=s; }
 function labelNames(){ $('nameClient').textContent='CLIENT: '+(isServer?peerNick:myNick); $('nameServer').textContent='SERVER: '+(isServer?myNick:peerNick); }
-function appendMsg(side,text){ var col=(side==='client')?$('colClient'):$('colServer'); if(!col) return; var olds=col.querySelectorAll('.bubble.last'); for(var i=0;i<olds.length;i++) olds[i].classList.remove('last'); var b=document.createElement('div'); b.className='bubble last'; b.textContent=text; col.appendChild(b); col.parentElement.scrollTop=col.parentElement.scrollHeight; if(historyEnabled){ history.push({side:side,text:text}); } }
-function redrawHistory(){ var body=$('histBody'); if(!body) return; body.innerHTML=''; for(var i=0;i<history.length;i++){ var r=document.createElement('div'); r.className='hrow'; var w=document.createElement('div'); w.className='hwho'; w.textContent=history[i].side.toUpperCase(); var t=document.createElement('div'); t.className='htext'; t.textContent=history[i].text; r.appendChild(w); r.appendChild(t); body.appendChild(r);} }
-function setBackground(u){ var grid=$('grid'); if(!grid) return; if(u){ grid.style.backgroundImage='url("'+u+'")'; grid.style.backgroundSize='cover'; grid.style.backgroundPosition='center'; } else { grid.style.backgroundImage='none'; } }
-function setSpecchio(u){ var s=$('specchio'); if(!s) return; s.style.backgroundImage=u?'url("'+u+'")':'none'; }
+
+/* ultimo in alto */
+function appendMsg(side,text){
+  var col=(side==='client')?$('colClient'):$('colServer'); if(!col) return;
+  var last=col.querySelector('.bubble.last'); if(last) last.classList.remove('last');
+  var b=document.createElement('div'); b.className='bubble last'; b.textContent=text;
+  if(col.firstChild) col.insertBefore(b, col.firstChild); else col.appendChild(b);
+  var sc=col.parentElement; if(sc) sc.scrollTop=0;
+  if(historyEnabled){ history.push({side:side,text:text}); }
+}
+function redrawHistory(){
+  var body=$('histBody'); if(!body) return; body.innerHTML='';
+  for(var i=0;i<history.length;i++){
+    var r=document.createElement('div'); r.className='hrow';
+    var w=document.createElement('div'); w.className='hwho'; w.textContent=history[i].side.toUpperCase();
+    var t=document.createElement('div'); t.className='htext'; t.textContent=history[i].text;
+    r.appendChild(w); r.appendChild(t); body.appendChild(r);
+  }
+}
+function setBackground(u){
+  var grid=$('grid'); if(!grid) return;
+  if(u){ grid.style.backgroundImage='url("'+u+'")'; grid.style.backgroundSize='cover'; grid.style.backgroundPosition='center'; }
+  else { grid.style.backgroundImage='none'; }
+  stateBg = u || null;
+}
+function setSpecchio(u){
+  var s=$('specchio'); if(!s) return;
+  s.style.backgroundImage=u?'url("'+u+'")':'none';
+  stateSpec = u || null;
+}
 function fileToDataUrl(file){ return new Promise(function(res,rej){ var fr=new FileReader(); fr.onload=function(){res(fr.result)}; fr.onerror=rej; fr.readAsDataURL(file); }); }
 function publish(obj){ if(!roomCode) return Promise.resolve(); var body=JSON.stringify(Object.assign({},obj,{from:selfId})); return fetch(SIGNAL_BASE+'/'+currentTopic,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:body}).catch(function(){}); }
 
@@ -234,7 +269,11 @@ function setupPeer(){
   };
   pc.onconnectionstatechange=function(){
     var st=pc.connectionState;
-    if(st==='connected'){ setStatus('P2P connesso'); var sb=$('sendBtn'); if(sb) sb.disabled=false; hideBanner(); switching=false; }
+    if(st==='connected'){ setStatus('P2P connesso'); var sb=$('sendBtn'); if(sb) sb.disabled=false; hideBanner(); switching=false;
+      // appena il DC è up, se sono server mando stato immagini
+      if(isServer && stateBg) sendCtrl({kind:'bg', dataUrl:stateBg});
+      if(isServer && stateSpec) sendCtrl({kind:'spec', dataUrl:stateSpec});
+    }
     else if(st==='failed'){ setStatus('connessione fallita'); var sb2=$('sendBtn'); if(sb2) sb2.disabled=true; requestSwitch('conn-failed'); }
     else if(st==='disconnected'){ setStatus('connessione persa'); var sb3=$('sendBtn'); if(sb3) sb3.disabled=true; }
   };
@@ -271,7 +310,16 @@ function handleIncoming(raw){
 function handleSignal(msg){
   if(msg.t==='hello'){
     if(msg.nick) { peerNick=msg.nick; labelNames(); }
+    // se sono SERVER, invio subito lo stato immagini così il client le vede già
+    if(isServer){ publish({t:'state', bg:stateBg, spec:stateSpec}); }
     maybeSendOffer();
+
+  } else if(msg.t==='state'){
+    // sync iniziale lato client
+    if(!isServer){
+      if(msg.bg) setBackground(msg.bg);
+      if(msg.spec) setSpecchio(msg.spec);
+    }
 
   } else if(msg.t==='quit'){
     showBanner('Il peer ha lasciato la sessione.','warn');
@@ -351,7 +399,7 @@ function hardResetToSetup(){
   setScreen('setup');
 }
 
-/* --- UI: event delegation --- */
+/* --- Event delegation --- */
 document.addEventListener('click', function(ev){
   var id=(ev.target&&ev.target.id)||'';
   switch(id){
@@ -382,21 +430,21 @@ document.addEventListener('click', function(ev){
     case 'btnCloseHist': var h2=$('history'); if(h2) h2.style.display='none'; break;
     case 'btnQuit': sendCtrl({kind:'quit'}); hardResetToSetup(); break;
 
-    case 'btnBg': var f=$('fileBg'); if(f) f.click(); break;
-    case 'btnBgClr': setBackground(null); sendCtrl({kind:'bg-clear'}); break;
+    case 'btnBg': if(isServer){ var f=$('fileBg'); if(f) f.click(); } break;
+    case 'btnBgClr': if(isServer){ setBackground(null); sendCtrl({kind:'bg-clear'}); } break;
 
-    case 'btnSpec': var s=$('fileSpec'); if(s) s.click(); break;
-    case 'btnSpecClr': setSpecchio(null); sendCtrl({kind:'spec-clear'}); break;
+    case 'btnSpec': if(isServer){ var s=$('fileSpec'); if(s) s.click(); } break;
+    case 'btnSpecClr': if(isServer){ setSpecchio(null); sendCtrl({kind:'spec-clear'}); } break;
 
     case 'sendBtn': sendMessage(); break;
   }
 });
 document.addEventListener('change', function(ev){
   var id=(ev.target&&ev.target.id)||'';
-  if(id==='fileBg'){
+  if(id==='fileBg' && isServer){
     var file=(ev.target.files&&ev.target.files[0])?ev.target.files[0]:null; if(!file) return;
     fileToDataUrl(file).then(function(u){ setBackground(u); sendCtrl({kind:'bg',dataUrl:u}); ev.target.value=''; });
-  }else if(id==='fileSpec'){
+  }else if(id==='fileSpec' && isServer){
     var file2=(ev.target.files&&ev.target.files[0])?ev.target.files[0]:null; if(!file2) return;
     fileToDataUrl(file2).then(function(u){ setSpecchio(u); sendCtrl({kind:'spec',dataUrl:u}); ev.target.value=''; });
   }
@@ -405,14 +453,41 @@ document.addEventListener('keydown', function(ev){
   if(ev.key==='Enter' && ev.target && ev.target.id==='text'){ ev.preventDefault(); sendMessage(); }
 });
 
-/* --- Start session helpers --- */
+/* --- UI helpers --- */
 function afterEnterMain(newSession){
   labelNames();
+  // mostra/nascondi controlli immagini per ruolo
+  var showImgCtrls = !!isServer;
+  ['btnBg','btnBgClr','fileBg','btnSpec','btnSpecClr','fileSpec'].forEach(function(id){
+    var el=$(id); if(!el) return;
+    el.style.display = showImgCtrls ? '' : 'none';
+  });
   if(newSession){
     var cc=$('colClient'), cs=$('colServer'); if(cc) cc.innerHTML=''; if(cs) cs.innerHTML='';
     setBackground(null); setSpecchio(null); history=[];
   }
 }
+
+/* --- Role UI in setup (SERVER/CLIENT) --- */
+function applySetupRoleUI(){
+  var roleEl=document.querySelector('input[name="role"]:checked');
+  var srv = !roleEl || roleEl.value==='server';
+  var room=$('room'), paste=$('btnPaste'), roomCol=$('roomCol');
+  if(srv){
+    if(room){ room.disabled=true; room.placeholder='(non necessario)'; room.value=''; }
+    if(paste){ paste.style.display='none'; }
+    if(roomCol){ roomCol.style.opacity='0.6'; }
+  }else{
+    if(room){ room.disabled=false; room.placeholder='Es. P2P-AB123'; }
+    if(paste){ paste.style.display=''; }
+    if(roomCol){ roomCol.style.opacity='1'; }
+  }
+}
+document.addEventListener('change', function(ev){
+  if(ev.target && ev.target.name==='role'){ applySetupRoleUI(); }
+});
+
+/* --- Start session --- */
 function startSession(){
   setStatus('preparazione…'); hideBanner(); historyEnabled=true;
   setupPeer(); openSSE(currentTopic);
@@ -432,11 +507,33 @@ function sendMessage(){
   var code=(url.searchParams.get('code')||'').trim().toUpperCase();
   var join=(url.searchParams.get('join')==='1');
   if(code){ var r=$('room'); if(r) r.value=code; if(join){ var radio=document.querySelector('input[name="role"][value="client"]'); if(radio) radio.checked=true; } }
+  applySetupRoleUI(); // inizializza visibilità
 })();
 
 /* --- Network awareness --- */
 window.addEventListener('offline', function(){ showBanner('Sei offline. Verifica la connessione.','warn'); });
 window.addEventListener('online', function(){ hideBanner(); if(currentTopic) openSSE(currentTopic); });
+
+/* --- Reconnect machinery (come prima) --- */
+function requestSwitch(why){
+  if(switching) return; switching=true;
+  if(isServer){
+    var newGen=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6);
+    publish({t:'switch',gen:newGen,why:why}).then(function(){ setTimeout(function(){ applySwitch(newGen); },120); })
+      .catch(function(){ setTimeout(function(){ applySwitch(newGen); },200); });
+  } else {
+    publish({t:'need-switch',why:why});
+  }
+}
+function applySwitch(newGen){
+  cleanupPeer();
+  topicGen=newGen; currentTopic=buildTopic();
+  openSSE(currentTopic); setupPeer();
+  publish({t:'hello',nick:myNick,role:(isServer?'server':'client')});
+  // ributto stato immagini al client
+  if(isServer){ publish({t:'state', bg:stateBg, spec:stateSpec}); }
+  setStatus('riconnessione…'); hideBanner();
+}
 
 })(); // end IIFE
 </script>
