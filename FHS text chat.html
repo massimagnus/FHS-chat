@@ -1,431 +1,866 @@
-<!-- P2P Chat v0.4 — trim messaggi, click su Specchio, feedback con intensità -->
 <!doctype html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat v0.4 — Specchio & Feedback</title>
+<title>P2P Chat v0.5 — single file</title>
 <style>
   :root{
-    --bg:#000; --bar:#0b1220; --line:#1f2937; --txt:#e5e7eb;
-    --bubble-me:#d4f7c8;      --bubble-me-text:#0f2e13;
-    --bubble-peer:#ffffff;    --bubble-peer-text:#0b1020;
-    --bubble-me-old:#b4d7aa;  --bubble-peer-old:#d9d9d9;
-    /* insets area verde della cornice 471×471 */
-    --inset-top:16.14%; --inset-right:16.56%; --inset-bottom:16.35%; --inset-left:16.35%;
+    --w:512px; --h:800px; --gap:.5rem; --pane-bg:#000; --ink:#eaeaea; --muted:#a7a7a7;
+    --accent:#9b87f5; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --bg:#0a0a0a;
   }
-  *{box-sizing:border-box} html,body{height:100%}
-  body{margin:0;background:var(--bg);display:grid;place-items:center;padding:1rem;color:var(--txt);
-       font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  /* DIMENSIONI FISSE */
-  #app{width:512px;height:800px;background:#000;border-radius:12px;overflow:hidden;position:relative;border:1px solid #111}
-  .screen{position:absolute;inset:0;display:none}.screen.active{display:grid}
+  html,body{height:100%;}
+  body{margin:0; background:#111; color:var(--ink); font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; display:grid; place-items:center;}
+  /* App shell */
+  .app{width:var(--w); height:var(--h); background:var(--pane-bg); position:relative; box-shadow:0 8px 40px rgba(0,0,0,.5); border:1px solid #222; overflow:hidden;}
+  header{display:flex; align-items:center; justify-content:space-between; padding:.6rem .8rem; background:#0f0f0f; border-bottom:1px solid #1c1c1c;}
+  header .title{font-weight:700; letter-spacing:.2px;}
+  header .version{font-size:.8rem; color:var(--muted)}
+  .row{display:flex; gap:.4rem; align-items:center;}
+  select, input[type=text], button, .chip{background:#121212; color:var(--ink); border:1px solid #2b2b2b; border-radius:.45rem; padding:.45rem .55rem;}
+  input[type=text]{width:150px;}
+  button{cursor:pointer}
+  button:disabled{opacity:.5; cursor:not-allowed}
+  .pill{padding:.3rem .5rem; border-radius:999px; font-size:.75rem;}
+  .muted{color:var(--muted)}
+  .hint{font-size:.75rem; color:#c9c9c9}
 
-  /* SETUP */
-  #setup{grid-template-rows:auto 1fr auto}
-  #setup header{padding:.7rem .9rem;background:var(--bar);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
-  #setup main{display:grid;place-items:center;padding:1rem}
-  #setup .panel{width:88%;max-width:470px;background:#0b0f1a;border:1px solid #0f172a;border-radius:12px;padding:1rem}
-  .row{display:flex;gap:.6rem}.col{flex:1}
-  label{display:block;font-size:.9rem;color:#94a3b8;margin:.35rem 0 .2rem}
-  input[type=text]{width:100%;padding:.6rem .7rem;border:1px solid #223;background:#0b0f1a;color:#fff;border-radius:8px}
-  .radio{display:flex;gap:.8rem;align-items:center;margin:.2rem 0 .8rem}
-  .radio label{display:flex;align-items:center;gap:.35rem;cursor:pointer;margin:0}
-  .hint{color:#9ca3af;font-size:.85rem;margin-top:.4rem}
-  .btn{padding:.55rem .9rem;border-radius:10px;cursor:pointer;border:1px solid #334155;background:#0f172a;color:#fff}
-  .btn.primary{background:#22c55e;border-color:#16a34a;color:#052e14;font-weight:700}
-  .btn:disabled{opacity:.6;cursor:not-allowed}
+  /* Canvas area */
+  .stage{position:relative; width:100%; aspect-ratio:1/1; background:#000;}
+  .stage-inner{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:420px; height:420px;}
+  .mirror{position:absolute; inset:0; display:grid; place-items:center;}
+  .mirror img{width:100%; height:100%; object-fit:cover; border-radius:.2rem;}
+  .frame{position:absolute; inset:0; pointer-events:none;}
+  .frame img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 10px rgba(0,0,0,.6));}
+  .frameHotspot{position:absolute; inset:0; cursor:pointer;}
 
-  /* MAIN layout (8 righe) */
-  #main{grid-template-rows:auto auto auto auto auto 1fr auto; /* header, banner, info, frame, feedback, chat(1fr), composer */}
-  header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.5rem .7rem;display:flex;align-items:center;justify-content:space-between}
-  .status{font-size:.9rem;color:#cbd5e1}
-  .pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;background:#1f2937;font-size:.72rem;margin-left:.35rem}
-  .controls{display:flex;gap:.35rem}
-  .controls .btn{background:#0f172a;border:1px solid #334155;color:#e5e7eb}
-  .controls .danger{background:#7f1d1d;border-color:#fecaca;color:#fee2e2}
+  /* Dock under the frame (client reactions) */
+  .dock{display:none; gap:.5rem; align-items:center; padding:.6rem .7rem; border-top:1px solid #1f1f1f; background:#0c0c0c;}
+  .dock.show{display:flex}
+  .colors{display:flex; gap:.25rem}
+  .sw{width:16px; height:16px; border-radius:3px; border:1px solid #2b2b2b; cursor:pointer; outline:1px solid transparent}
+  .sw.sel{outline:1px solid #fff}
+  .toast{position:absolute; left:50%; top:6px; transform:translateX(-50%); background:#0d0d0d; padding:.5rem .7rem; border:2px solid #444; border-radius:.6rem; box-shadow:0 6px 30px rgba(0,0,0,.55); opacity:0; transition:opacity .2s ease}
+  .toast.show{opacity:1}
 
-  #banner{display:none;padding:.45rem .7rem;font-weight:600}
-  .banner-warn{background:#3b2f14;color:#fde68a;border-bottom:1px solid #a16207}
-  .banner-err{background:#3a1b1b;color:#fecaca;border-bottom:1px solid #b91c1c}
+  /* Connection panel */
+  .connect{display:grid; grid-template-columns:1fr; gap:.5rem; padding:.6rem .8rem; border-bottom:1px solid #1c1c1c;}
+  .connect .row{flex-wrap:wrap}
+  .codebox{font-weight:700; letter-spacing:.05em; padding:.2rem .45rem; border:1px dashed #3a3a3a; border-radius:.35rem}
+  .status{font-size:.9rem; color:#c9c9c9}
 
-  /* info (mostra codice stanza) */
-  #info{background:#0b1220;border-bottom:1px solid var(--line);padding:.35rem .6rem;color:#9ca3af}
+  /* Chat area */
+  .chat{display:grid; grid-template-rows:auto 1fr; height:calc(100% - 420px - 136px);}
+  .chatHeader{display:flex; justify-content:space-between; align-items:center; padding:.4rem .6rem; border-top:1px solid #1c1c1c;}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:.4rem; padding:.3rem .6rem .6rem; overflow:auto}
+  .col{border:1px solid #1e1e1e; border-radius:.5rem; padding:.35rem; min-height:80px}
+  .nick{font-size:.8rem; color:#a9a9a9; margin-bottom:.2rem; display:flex; justify-content:space-between;}
+  .bubble{background:#141414; border:1px solid #242424; padding:.35rem .45rem; border-radius:.45rem; margin:.3rem 0;}
+  .bubble.me{border-color:#2d3f8f}
+  .bubble.peer{border-color:#2d8f3f}
+  .chatInput{display:flex; gap:.4rem; padding:.5rem .6rem; border-top:1px solid #1c1c1c;}
+  .history{display:none; padding:.5rem .6rem; border-top:1px dashed #303030; max-height:140px; overflow:auto}
+  .history.show{display:block}
 
-  /* Cornice + Specchio (click SERVER) */
-  #frameWrap{position:relative;width:100%;aspect-ratio:1/1;background-position:center;background-size:contain;background-repeat:no-repeat}
-  #frameWrap.clickable{cursor:pointer}
-  #specchio{position:absolute;inset:var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
-            background:#10b981;background-position:center;background-size:cover;background-repeat:no-repeat;border-radius:2px}
+  .foot{position:absolute; bottom:.4rem; right:.6rem; font-size:.75rem; color:#8a8a8a}
 
-  /* Feedback dock (sotto cornice, per client e popup server) */
-  #feedbackDock{display:none;align-items:center;justify-content:center;gap:.5rem;padding:.4rem .6rem;background:#0b1220;border-bottom:1px solid var(--line)}
-  #fbControls{display:flex;align-items:center;gap:.45rem}
-  #fbControls select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:.35rem .5rem}
-  .swatches{display:flex;gap:.25rem}
-  .swatch{width:18px;height:18px;border-radius:50%;border:1px solid #ffffff33;cursor:pointer}
-  .swatch.sel{outline:2px solid #fff}
-  #fbSend{background:#22c55e;border:1px solid #16a34a;color:#052e14;border-radius:8px;padding:.35rem .6rem;font-weight:700}
-
-  /* Nomi + CHAT */
-  #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem .1rem;font-weight:800;color:#cbd5e1;font-size:.95rem}
-  #names div{text-align:center}
-  #chat{display:grid;grid-template-rows:auto 1fr;padding:.2rem .6rem .4rem}
-  #grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;overflow:auto}
-  .colList{display:flex;flex-direction:column;gap:.3rem}
-  .colList.peer{align-items:flex-start}.colList.me{align-items:flex-end}
-  .colList.me .bubble{text-align:right}.colList.peer .bubble{text-align:left}
-  .bubble{display:inline-block;max-width:90%;padding:.5rem .7rem;border-radius:.9rem;
-          box-shadow:0 1px 0 rgba(0,0,0,.35);white-space:pre-wrap;line-height:1.25;transition:filter .25s,opacity .25s,transform .25s}
-  .colList.me   .bubble.last{background:var(--bubble-me);color:var(--bubble-me-text);border:1px solid #a7e3a0;font-size:1rem;transform:scale(1)}
-  .colList.peer .bubble.last{background:var(--bubble-peer);color:var(--bubble-peer-text);border:1px solid #e5e7eb;font-size:1rem;transform:scale(1)}
-  .colList.me   .bubble:not(.last){background:var(--bubble-me-old);color:#122015;border:1px solid #94c789;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
-  .colList.peer .bubble:not(.last){background:var(--bubble-peer-old);color:#1b1b1b;border:1px solid #c9c9c9;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
-
-  .composer{background:var(--bar);border-top:1px solid var(--line);padding:.5rem .6rem;display:flex;gap:.45rem;align-items:center}
-  #text{flex:1;padding:.55rem .75rem;border:1px solid #475569;border-radius:999px;background:#0f172a;color:#e5e7eb;caret-color:#e5e7eb}
-  #text::placeholder{color:#94a3b8}
-  #sendBtn{padding:.55rem .9rem;border:1px solid #16a34a;background:#22c55e;color:#052e14;border-radius:999px;font-weight:700}
-  #sendBtn:disabled{opacity:.6;cursor:not-allowed}
-
-  /* STORIA + popup server (riuso del dock) */
-  #history{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
-  #history .card{width:86%;max-width:480px;max-height:70%;background:#0b0f1a;border:1px solid #334155;border-radius:12px;display:flex;flex-direction:column;color:#e5e7eb}
-  #history header{padding:.5rem .7rem;font-weight:700;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
-  #history main{padding:.6rem .7rem;overflow:auto}
-  .hrow{display:flex;gap:.5rem;margin:.15rem 0}.hwho{width:80px;font-weight:700;color:#9ca3af}.htext{flex:1}
-
-  #serverPop{display:none;padding:.35rem .6rem;border-radius:10px;background:#111827;color:#e5e7eb;border-left:6px solid #8b5cf6;font-weight:700}
-  #jsErr{position:absolute;left:12px;right:12px;bottom:12px;background:#3a1b1b;color:#fee2e2;padding:.5rem .75rem;border:1px solid #b91c1c;border-radius:8px;display:none;font-weight:700}
+  /* Accessibility helpers */
+  [role=button]{cursor:pointer}
 </style>
 </head>
 <body>
-<div id="app">
+<div class="app" aria-label="P2P chat app">
+  <header>
+    <div class="title">P2P Chat — <span class="version">v0.5</span></div>
+    <div class="row">
+      <label class="muted" for="roleSel">Ruolo</label>
+      <select id="roleSel" title="Seleziona ruolo">
+        <option value="server">SERVER</option>
+        <option value="client">CLIENT</option>
+      </select>
+      <span class="pill" id="status" aria-live="polite">offline</span>
+    </div>
+  </header>
 
-  <!-- SETUP -->
-  <section id="setup" class="screen active">
-    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.4</span></header>
-    <main>
-      <div class="panel">
-        <div class="row">
-          <div class="col"><label for="nickMe">Il tuo nickname</label><input id="nickMe" type="text" placeholder="Es. Marco" maxlength="24"></div>
-          <div class="col" id="roomCol"><label for="room">Codice stanza (solo CLIENT)</label><input id="room" type="text" placeholder="Es. P2P-AB123" maxlength="24"></div>
-        </div>
-        <div class="radio">
-          <label><input type="radio" name="role" value="server" checked> SERVER (crea)</label>
-          <label><input type="radio" name="role" value="client"> CLIENT (entra)</label>
-        </div>
-        <div class="row">
-          <button id="btnStart" class="btn primary" style="flex:1">Avvia</button>
-          <button id="btnPaste" class="btn" title="Incolla codice dagli appunti">Incolla codice</button>
-        </div>
-        <div class="hint">SERVER genera il codice e condivide il link. CLIENT inserisce il codice e si collega.</div>
-      </div>
-    </main>
-    <footer style="padding:.65rem .9rem;color:#9ca3af;border-top:1px solid #1f2937">
-      Nessun dato su server: il flusso viaggia P2P tra i browser.
-    </footer>
+  <!-- Connection controls -->
+  <section class="connect" aria-label="Connessione">
+    <div class="row">
+      <button id="createBtn">Crea chat</button>
+      <input id="joinCode" type="text" inputmode="verbatim" placeholder="Inserisci codice" maxlength="24">
+      <button id="joinBtn">Entra</button>
+      <span class="codebox" id="codeBox">—</span>
+    </div>
+    <div class="row">
+      <input id="inviteLink" type="text" readonly placeholder="Link invito" style="width:100%">
+      <button id="copyBtn" title="Copia link invito">Copia</button>
+    </div>
+    <div class="status" id="connHint">Stato: in attesa</div>
   </section>
 
-  <!-- MAIN -->
-  <section id="main" class="screen">
-    <header class="bar">
-      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.4</span></div>
-      <div class="controls">
-        <button id="btnHistory" class="btn">STORIA</button>
-        <button id="btnQuit" class="btn danger">ESCI</button>
+  <!-- Square stage with frame/mirror -->
+  <section class="stage" aria-label="Specchio e cornice">
+    <div class="stage-inner">
+      <div class="mirror" id="mirrorBox" aria-live="polite">
+        <img id="mirror" alt="Immagine nello specchio" src=""/>
       </div>
-    </header>
-
-    <div id="banner" role="status"></div>
-
-    <div id="info">Codice: <strong id="codeBox">—</strong></div>
-
-    <div id="frameWrap"></div>
-
-    <!-- Dock: client = controlli feedback, server = popup "reazione" -->
-    <div id="feedbackDock">
-      <div id="fbControls">
-        <span style="color:#9ca3af">Feedback:</span>
-        <select id="fbSelect">
-          <option>AIUTO!</option>
-          <option>BELLISSIMA</option>
-          <option>Ne' CALDO NE' FREDDO</option>
-          <option>NORMALE</option>
-          <option>DA BRIVIDI!</option>
-          <option>NO GRAZIE</option>
-          <option>PAURA!</option>
-          <option>SORPRESA!</option>
-          <option>IMBARAZZO</option>
-        </select>
-        <div class="swatches" id="fbSwatches"></div>
-        <button id="fbSend">Invia</button>
+      <div class="frame">
+        <img alt="Cornice" id="frameImg" src=""/>
       </div>
-      <div id="serverPop">reazione: …</div>
+      <div class="frameHotspot" id="frameHotspot" title="Clic per cambiare immagine (solo SERVER)"></div>
+      <div class="toast" id="toast">reazione</div>
     </div>
-
-    <div id="names"><div id="nameClient">CLIENT</div><div id="nameServer">SERVER</div></div>
-
-    <div id="chat">
-      <div id="grid">
-        <div id="colClient" class="colList peer"></div>
-        <div id="colServer" class="colList me"></div>
-      </div>
-    </div>
-
-    <div class="composer"><input id="text" type="text" placeholder="Scrivi un messaggio…"><button id="sendBtn" disabled>Invia</button></div>
   </section>
 
-  <div id="history"><div class="card"><header>Storia conversazione <button id="btnCloseHist" class="btn">Chiudi</button></header><main id="histBody"></main></div></div>
-  <div id="jsErr"></div>
+  <!-- Reaction dock (client only, appears when a new image arrives) -->
+  <div class="dock" id="dock" aria-label="Reazione all'immagine">
+    <label for="reactionSel" class="muted">Feedback</label>
+    <select id="reactionSel" title="Scegli reazione">
+      <option>AIUTO!</option>
+      <option>BELLISSIMA</option>
+      <option>NE' CALDO NE' FREDDO</option>
+      <option>NORMALE</option>
+      <option>DA BRIVIDI!</option>
+      <option>NO GRAZIE</option>
+      <option>PAURA!</option>
+      <option>SORPRESA!</option>
+      <option>IMBARAZZO</option>
+    </select>
+    <span class="muted">Intensità</span>
+    <div class="colors" id="colors"></div>
+    <button id="sendReact">Invia</button>
+  </div>
 
-  <!-- input file nascosto -->
-  <input id="fileSpec" type="file" accept="image/*" style="display:none">
+  <!-- Chat -->
+  <section class="chat" aria-label="Chat">
+    <div class="chatHeader">
+      <div class="row">
+        <label class="muted" for="nickMe">Nickname</label>
+        <input id="nickMe" type="text" placeholder="Il tuo nome" value="Anon">
+        <label class="muted" for="nickPeer">Peer</label>
+        <input id="nickPeer" type="text" placeholder="Nome peer" value="Peer">
+      </div>
+      <div class="row">
+        <button id="toggleHist" class="chip">STORIA</button>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col" id="colMe">
+        <div class="nick"><span id="nickMeLbl">Me</span><span class="muted">ultimi 3</span></div>
+        <div class="stack" id="meStack"></div>
+      </div>
+      <div class="col" id="colPeer">
+        <div class="nick"><span id="nickPeerLbl">Peer</span><span class="muted">ultimi 3</span></div>
+        <div class="stack" id="peerStack"></div>
+      </div>
+    </div>
+    <div class="history" id="history"></div>
+    <div class="chatInput">
+      <input id="text" type="text" placeholder="Scrivi…">
+      <button id="sendBtn" disabled>Invia</button>
+    </div>
+  </section>
+
+  <div class="foot">STUN: stun.l.google.com:19302 · signaling: ntfy.sh</div>
+
+  <input type="file" id="filePicker" accept="image/*" hidden>
 </div>
 
 <script>
-/* ===== v0.4: variabili ===== */
-const APP_VERSION = '0.4';
-const FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.4';
-/* palette 7 step: grigio → porpora */
-const FB_COLORS = ['#e5e7eb','#cfd3d8','#d6d3f0','#c4b5fd','#a78bfa','#8b5cf6','#6d28d9'];
+(() => {
+  const VERSION = 'v0.5';
+  const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
+  const SIGNAL_BASE = 'https://ntfy.sh';
+  const colors = ['#d7d7d7','#c6c1d4','#aea7dc','#958eef','#7d73f3','#6557e6','#800080'];
+  const $ = (id) => document.getElementById(id);
 
-/* setScreen */
-function setScreen(name){ const s=document.getElementById('setup'), m=document.getElementById('main'); s?.classList.remove('active'); m?.classList.remove('active'); document.getElementById(name)?.classList.add('active'); }
-window.setScreen=setScreen;
-
-/* error box */
-window.addEventListener('error', e=>{ const el=document.getElementById('jsErr'); if(!el) return; el.textContent='Errore script: '+(e.message||'sconosciuto')+(e.filename?(' @ '+e.filename+':'+e.lineno):''); el.style.display='block'; });
-
-/* ===== App ===== */
-(()=>{'use strict';
-const STUNS=[{urls:'stun:stun.l.google.com:19302'}], TURNS=[], SIGNAL_BASE='https://ntfy.sh';
-let pc=null, dc=null, sse=null, isServer=false;
-let roomCode=null, baseTopic=null, topicGen='0', currentTopic=null;
-const selfId=crypto.getRandomValues(new Uint32Array(1))[0].toString(16);
-let pendingCandidates=[], remoteSet=false, offerSent=false, answerSent=false;
-let sseBackoff=1000, SSE_BACKOFF_MAX=10000, sseUp=false, switching=false, dcCloseTimer=null, discTimer=null;
-let myNick='Io', peerNick='Peer', history=[], historyEnabled=true;
-let stateSpec=null, awaitingFeedback=false, fbIndex=3;
-
-/* DOM helpers */
-const $=id=>document.getElementById(id);
-const showBanner=(t,kind)=>{const el=$('banner'); if(!el) return; el.textContent=t; el.className=(kind==='err'?'banner-err':'banner-warn'); el.style.display='block';};
-const hideBanner=()=>{const el=$('banner'); if(!el) return; el.style.display='none'; el.textContent=''; el.className='';};
-const genCode=()=> 'P2P-'+Math.random().toString(36).slice(2,7).toUpperCase();
-const topicBase=code=>'p2pchat-'+code;
-const buildTopic=()=> baseTopic+'-'+topicGen;
-const currentBaseURL=()=>{const u=new URL(location.href); return u.origin+u.pathname;};
-const makeInviteLink=code=>{const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); u.searchParams.set('v',APP_VERSION); return u.toString();};
-const setStatus=s=>{$('status').textContent=s;};
-function labelNames(){ $('nameClient').textContent='CLIENT: '+(isServer?peerNick:myNick); $('nameServer').textContent='SERVER: '+(isServer?myNick:peerNick); }
-
-/* messaggi (trim: max 3 per colonna) */
-function trimCol(col,max=3){ while(col.children.length>max){ col.removeChild(col.lastChild); } }
-function appendMsg(side,text){
-  const col=(side==='client')?$('colClient'):$('colServer'); if(!col) return;
-  const last=col.querySelector('.bubble.last'); if(last) last.classList.remove('last');
-  const b=document.createElement('div'); b.className='bubble last'; b.textContent=text;
-  if(col.firstChild) col.insertBefore(b,col.firstChild); else col.appendChild(b);
-  trimCol(col,3);
-  if(historyEnabled) history.push({side,text});
-}
-function redrawHistory(){ const body=$('histBody'); if(!body) return; body.innerHTML=''; for(const r of history){ const row=document.createElement('div'); row.className='hrow'; const w=document.createElement('div'); w.className='hwho'; w.textContent=r.side.toUpperCase(); const t=document.createElement('div'); t.className='htext'; t.textContent=r.text; row.appendChild(w); row.appendChild(t); body.appendChild(row);}}
-
-/* Frame & Specchio */
-function ensureFrame(){ const wrap=$('frameWrap'); if(!wrap) return; wrap.style.backgroundImage='url("'+FRAME_SRC+'")'; wrap.classList.toggle('clickable', isServer); if(!$('specchio')){ const s=document.createElement('div'); s.id='specchio'; wrap.appendChild(s); } }
-function setSpecchio(u){ ensureFrame(); const s=$('specchio'); if(!s) return; s.style.backgroundImage=u?'url("'+u+'")':'none'; stateSpec=u||null; }
-
-/* utils */
-const fileToDataUrl=f=>new Promise((res,rej)=>{const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=rej; fr.readAsDataURL(f);});
-function publish(obj){ if(!roomCode) return Promise.resolve(); const body=JSON.stringify({...obj,from:selfId}); return fetch(`${SIGNAL_BASE}/${currentTopic}`,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body}).catch(()=>{}); }
-
-/* SSE */
-function openSSE(tpc){
-  if(sse){ try{sse.close()}catch{} sse=null; }
-  sse=new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
-  sse.onopen=()=>{ sseUp=true; sseBackoff=1000; const p=$('pillSSE'); if(p){p.style.background='#14532d';p.style.border='1px solid #16a34a';} hideBanner(); };
-  sse.onerror=()=>{ if(sseUp) showBanner('Signaling disconnesso. Riconnessione…','warn'); sseUp=false; const p=$('pillSSE'); if(p){p.style.background='#78350f';p.style.border='1px solid #fbbf24';} try{sse.close()}catch{} setTimeout(()=>openSSE(tpc), sseBackoff); sseBackoff=Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff*1.8)); };
-  sse.onmessage=ev=>{ try{ const env=JSON.parse(ev.data); if(!env||typeof env.message!=='string') return; const msg=JSON.parse(env.message); if(!msg||msg.from===selfId) return; handleSignal(msg); }catch{} };
-}
-
-/* WebRTC */
-function setupPeer(){
-  pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false;
-  if(discTimer){ clearTimeout(discTimer); discTimer=null; }
-  pc=new RTCPeerConnection({iceServers:[...STUNS,...TURNS]});
-  pc.oniceconnectionstatechange=()=>{
-    const st=pc.iceConnectionState;
-    if(st==='failed'){ showBanner('Connessione peer fallita. Riprovo…','err'); requestSwitch('ice-failed'); }
-    else if(st==='disconnected'){ showBanner('Peer disconnesso. Attendo…','warn'); if(!discTimer) discTimer=setTimeout(()=>requestSwitch('ice-disconnected'), 2500); }
+  const state = {
+    role: 'server',
+    pc: null, dc: null, sse: null,
+    roomCode: null, isOfferer: false,
+    selfId: crypto.getRandomValues(new Uint32Array(1))[0].toString(16),
+    sendingImage: false,
+    recv: null, // {id,size,type,got,buffers:[]}
+    history: [], meMsgs: [], peerMsgs: []
   };
-  pc.onconnectionstatechange=()=>{
-    const st=pc.connectionState;
-    if(st==='connected'){
-      setStatus('P2P connesso'); $('sendBtn').disabled=false; hideBanner(); switching=false;
-      if(isServer && stateSpec) sendCtrl({kind:'spec',dataUrl:stateSpec}); // re-sync
-    } else if(st==='failed'){ setStatus('connessione fallita'); $('sendBtn').disabled=true; requestSwitch('conn-failed'); }
-    else if(st==='disconnected'){ setStatus('connessione persa'); $('sendBtn').disabled=true; }
-  };
-  if(isServer){ dc=pc.createDataChannel('chat'); wireDC(dc); } else { pc.ondatachannel=e=>{ dc=e.channel; wireDC(dc); }; }
-  pc.onicecandidate=e=>{ if(e&&e.candidate) publish({t:'candidate',candidate:e.candidate}); };
-}
-function wireDC(ch){
-  ch.onopen=()=>{ $('sendBtn').disabled=false; hideBanner(); };
-  ch.onclose=()=>{ $('sendBtn').disabled=true; showBanner('Canale dati chiuso. Riconnessione…','err'); if(dcCloseTimer) clearTimeout(dcCloseTimer); dcCloseTimer=setTimeout(()=>requestSwitch('dc-closed'),600); };
-  ch.onmessage=e=> handleIncoming(e.data);
-}
-function maybeSendOffer(){ if(!isServer||offerSent) return; pc.createOffer().then(of=>pc.setLocalDescription(of)).then(()=>publish({t:'offer',sdp:pc.localDescription})).then(()=>offerSent=true); }
 
-/* Messaging */
-function sendText(txt){ if(!dc||dc.readyState!=='open') return; try{ dc.send(JSON.stringify({t:'txt',text:txt})); }catch{} }
-function sendCtrl(obj){ obj=obj||{}; if(dc&&dc.readyState==='open'){ try{ dc.send(JSON.stringify({t:'ctrl',...obj})); }catch{} } if(obj.kind==='quit') publish({t:'quit'}); }
-function handleIncoming(raw){
-  try{
-    const msg=JSON.parse(raw);
-    if(msg.t==='txt'){
-      const side=(isServer?'client':'server'); appendMsg(side,msg.text);
-    }else if(msg.t==='ctrl'){
-      if(msg.kind==='spec' && msg.dataUrl){
-        setSpecchio(msg.dataUrl);
-        if(!isServer){ awaitingFeedback=true; toggleFeedback(true); }
-      }else if(msg.kind==='spec-clear'){
-        setSpecchio(null); if(!isServer) toggleFeedback(false);
-      }else if(msg.kind==='fb' && isServer){
-        serverPopup(msg.val, msg.color||FB_COLORS[3]);
-      }
-    }
-  }catch{
-    const side=(isServer?'client':'server'); appendMsg(side, raw);
+  // Frame (with cache-busting)
+  const frameUrl = `https://massimagnus.github.io/FHS-chat/cornice.png?v=${encodeURIComponent(VERSION)}`;
+  $('frameImg').src = frameUrl;
+
+  // Role selection
+  $('roleSel').addEventListener('change', (e) => {
+    state.role = e.target.value;
+    // Only server can change image; hint cursor accordingly
+    $('frameHotspot').style.cursor = state.role === 'server' ? 'pointer' : 'not-allowed';
+  });
+
+  // Connection helpers
+  function setStatus(t){ $('status').textContent = t; }
+  function topic(code){ return `p2pchat-${code}`; }
+  function genCode(){ return 'P2P-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
+  function currentBaseURL(){ const u=new URL(location.href); return `${u.origin}${u.pathname}`; }
+  function makeInviteLink(code){ const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString(); }
+
+  // UI bits
+  const meStack = $('meStack');
+  const peerStack = $('peerStack');
+  const historyEl = $('history');
+  const mirror = $('mirror');
+  const dock = $('dock');
+  const toast = $('toast');
+
+  function pushMsg(kind, text){
+    const time = new Date().toLocaleTimeString();
+    state.history.unshift({time, who:kind, text}); // newest first
+    if (kind === 'me'){ state.meMsgs.unshift({time,text}); trimStacks(); renderStacks(); }
+    else if (kind === 'peer'){ state.peerMsgs.unshift({time,text}); trimStacks(); renderStacks(); }
+    renderHistory();
   }
-}
+  function trimStacks(){ state.meMsgs = state.meMsgs.slice(0,3); state.peerMsgs = state.peerMsgs.slice(0,3); }
+  function bubble(html, cls){ const d=document.createElement('div'); d.className = `bubble ${cls}`; d.innerHTML = html; return d; }
+  function renderStacks(){
+    meStack.innerHTML = ''; peerStack.innerHTML='';
+    state.meMsgs.forEach(m => meStack.appendChild(bubble(`<div>${escapeHtml(m.text)}</div><div class="hint">${m.time}</div>`, 'me')));
+    state.peerMsgs.forEach(m => peerStack.appendChild(bubble(`<div>${escapeHtml(m.text)}</div><div class="hint">${m.time}</div>`, 'peer')));
+  }
+  function renderHistory(){ historyEl.innerHTML = state.history.map(e => `<div class="hint">[${e.time}] <b>${e.who}</b> — ${escapeHtml(e.text)}</div>`).join(''); }
+  function escapeHtml(s){ return s.replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\\':'\\'}[c])); }
 
-/* signaling + reconnect */
-function handleSignal(msg){
-  if(msg.t==='hello'){
-    if(msg.nick) { peerNick=msg.nick; labelNames(); }
-    if(isServer){ publish({t:'state', spec:stateSpec}); }
-    maybeSendOffer();
-  } else if(msg.t==='state'){
-    if(!isServer && msg.spec){ setSpecchio(msg.spec); awaitingFeedback=true; toggleFeedback(true); }
-  } else if(msg.t==='quit'){
-    showBanner('Il peer ha lasciato la sessione.','warn'); setTimeout(()=>hardResetToSetup(),250);
-  } else if(msg.t==='switch'){ if(msg.gen) applySwitch(msg.gen); }
-  else if(msg.t==='need-switch'){ if(isServer) requestSwitch('asked-by-peer'); }
-  else if(msg.t==='offer'){
-    pc.setRemoteDescription(msg.sdp).then(()=>{
-      remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[];
-      if(!answerSent){ return pc.createAnswer().then(ans=>pc.setLocalDescription(ans)).then(()=>publish({t:'answer',sdp:pc.localDescription})).then(()=>answerSent=true); }
+  // Reaction dock colors
+  (function initColors(){
+    const cWrap = $('colors');
+    colors.forEach((c,idx) => {
+      const sw = document.createElement('div'); sw.className='sw'; sw.style.background=c; sw.setAttribute('data-i',String(idx));
+      sw.addEventListener('click', () => {
+        [...cWrap.children].forEach(x=>x.classList.remove('sel')); sw.classList.add('sel'); cWrap.setAttribute('data-sel', String(idx));
+      });
+      if(idx===0){ sw.classList.add('sel'); cWrap.setAttribute('data-sel','0'); }
+      cWrap.appendChild(sw);
     });
-  } else if(msg.t==='answer'){
-    pc.setRemoteDescription(msg.sdp).then(()=>{ remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[]; });
-  } else if(msg.t==='candidate'){
-    if(remoteSet && pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(()=>{}); }
-    else pendingCandidates.push(msg.candidate);
+  })();
+
+  // STAGE interactions
+  const picker = $('filePicker');
+  $('frameHotspot').addEventListener('click', () => {
+    if (state.role !== 'server') { flashToast("Solo il SERVER può cambiare lo specchio", '#3a3a3a'); return; }
+    if (!state.dc || state.dc.readyState !== 'open'){ flashToast('Non connesso', '#444'); return; }
+    picker.click();
+  });
+  picker.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    await sendImage(f);
+  });
+
+  // Toast
+  let toastTimer=null; function flashToast(msg, color){
+    toast.textContent = msg; toast.style.borderColor = color || '#444'; toast.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=> toast.classList.remove('show'), 6000);
   }
-}
-function requestSwitch(why){
-  if(switching) return; switching=true;
-  if(isServer){
-    const newGen=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,6);
-    publish({t:'switch',gen:newGen,why}).then(()=>setTimeout(()=>applySwitch(newGen),120)).catch(()=>setTimeout(()=>applySwitch(newGen),200));
-  } else publish({t:'need-switch',why});
-}
-function applySwitch(newGen){ cleanupPeer(); topicGen=newGen; currentTopic=buildTopic(); openSSE(currentTopic); setupPeer(); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); if(isServer){ publish({t:'state', spec:stateSpec}); } setStatus('riconnessione…'); hideBanner(); }
-function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch{} try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch{} dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false; }
 
-/* reset */
-function hardResetToSetup(){ historyEnabled=false; try{ sse?.close(); }catch{} cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
-  $('codeBox').textContent='—'; setSpecchio(null); $('colClient').innerHTML=''; $('colServer').innerHTML='';
-  history=[]; awaitingFeedback=false; toggleFeedback(false); setStatus('offline'); setScreen('setup'); }
+  // Reaction sending (client)
+  $('sendReact').addEventListener('click', () => {
+    if (!state.dc || state.dc.readyState !== 'open') return;
+    const tag = $('reactionSel').value; const idx = Number($('colors').getAttribute('data-sel')||'0');
+    sendJson({t:'reaction', tag, idx});
+  });
 
-/* UI EVENTS */
-document.addEventListener('click', ev=>{
-  const id=ev.target?.id||'';
-  if(id==='btnPaste'){ navigator.clipboard?.readText().then(t=>{$('room').value=(t||'').trim();}); }
-  else if(id==='btnStart'){
-    myNick=($('nickMe').value||'Io').trim();
-    const roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
-    if(isServer){
-      roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
-      setScreen('main'); afterEnterMain(true); startSession(); navigator.clipboard?.writeText(makeInviteLink(roomCode)).catch(()=>{});
-    }else{
-      const code=($('room').value||'').trim().toUpperCase(); if(!code){ alert('Inserisci un codice stanza'); return; }
-      roomCode=code; baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
-      setScreen('main'); afterEnterMain(true); startSession();
+  // Chat
+  $('sendBtn').addEventListener('click', () => {
+    const t = $('text').value.trim(); if(!t || !state.dc || state.dc.readyState!=='open') return;
+    state.dc.send(t); pushMsg('me', t); $('text').value='';
+  });
+  $('text').addEventListener('keydown', e => { if(e.key==='Enter') $('sendBtn').click(); });
+  $('toggleHist').addEventListener('click', () => { historyEl.classList.toggle('show'); });
+  $('nickMe').addEventListener('input', () => { $('nickMeLbl').textContent = $('nickMe').value || 'Me'; });
+  $('nickPeer').addEventListener('input', () => { $('nickPeerLbl').textContent = $('nickPeer').value || 'Peer'; });
+
+  // Connect buttons
+  $('createBtn').addEventListener('click', async () => { await createRoom(); });
+  $('joinBtn').addEventListener('click', async () => {
+    const code = $('joinCode').value.trim().toUpperCase(); if (!code) return;
+    await joinRoom(code);
+  });
+  $('copyBtn').addEventListener('click', async () => {
+    if(!$('inviteLink').value) return;
+    try{ await navigator.clipboard.writeText($('inviteLink').value); flashToast('Link copiato', '#3355ff'); }catch{ flashToast('Copia non riuscita', '#444'); }
+  });
+
+  // WebRTC
+  async function createRoom(){
+    state.roomCode = genCode(); $('codeBox').textContent = state.roomCode; state.isOfferer = true;
+    const link = makeInviteLink(state.roomCode); $('inviteLink').value = link; $('connHint').textContent = 'Condividi il link invito con il peer.';
+    await start();
+  }
+  async function joinRoom(code){
+    state.roomCode = code; $('codeBox').textContent = code; state.isOfferer = false;
+    $('inviteLink').value = makeInviteLink(code); $('connHint').textContent = 'Entrato nella stanza. Attendo handshake…';
+    await start();
+  }
+
+  async function start(){
+    setStatus('preparazione…');
+    setupPeer();
+    subscribeSSE(topic(state.roomCode));
+    if (state.isOfferer){
+      const offer = await state.pc.createOffer();
+      await state.pc.setLocalDescription(offer);
+      await publish({ t:'offer', sdp: state.pc.localDescription });
+    }
+    setStatus('in attesa handshake…');
+  }
+
+  function setupPeer(){
+    state.pc = new RTCPeerConnection({ iceServers: STUNS });
+    if (state.isOfferer){
+      state.dc = state.pc.createDataChannel('chat');
+      wireDC(state.dc);
+    } else {
+      state.pc.ondatachannel = (ev) => { state.dc = ev.channel; wireDC(state.dc); };
+    }
+    state.pc.onicecandidate = (ev) => { if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate }); };
+    state.pc.onconnectionstatechange = () => {
+      const cs = state.pc.connectionState;
+      if (cs === 'connected'){ setStatus('P2P connesso'); $('sendBtn').disabled=false; flashToast('Chat pronta', '#2a7'); }
+      else if (cs === 'failed' || cs === 'disconnected'){ setStatus('connessione persa'); $('sendBtn').disabled=true; }
+    };
+  }
+
+  function wireDC(ch){
+    ch.binaryType = 'arraybuffer';
+    ch.onopen = () => { pushMsg('system', 'Canale aperto'); };
+    ch.onclose = () => { pushMsg('system', 'Canale chiuso'); };
+    ch.onmessage = (ev) => {
+      if (typeof ev.data === 'string') handleText(ev.data); else handleBinary(ev.data);
+    };
+  }
+
+  async function handleText(s){
+    try{
+      const msg = JSON.parse(s);
+      if (msg.t === 'offer' || msg.t === 'answer' || msg.t === 'candidate'){ /* signaling arrives via SSE only */ return; }
+      if (msg.t === 'reaction'){
+        const color = colors[(msg.idx|0) % colors.length];
+        flashToast(`reazione: ${msg.tag}`, color);
+        return;
+      }
+      if (msg.t === 'image-begin'){
+        state.recv = { id: msg.id, size: msg.size|0, type: msg.type||'image/jpeg', got:0, buffers:[] };
+        if (state.role === 'client') dock.classList.add('show');
+        return;
+      }
+    }catch{ /* Not JSON: treat as chat */ }
+    // Plain chat text
+    pushMsg('peer', s);
+  }
+
+  function handleBinary(buf){
+    if (!state.recv) return; // unexpected
+    state.recv.buffers.push(buf); state.recv.got += buf.byteLength;
+    if (state.recv.got >= state.recv.size){
+      const blob = new Blob(state.recv.buffers, {type: state.recv.type});
+      const url = URL.createObjectURL(blob);
+      mirror.src = url;
+      state.recv = null;
     }
   }
-  else if(id==='btnHistory'){ redrawHistory(); $('history').style.display='flex'; }
-  else if(id==='btnCloseHist'){ $('history').style.display='none'; }
-  else if(id==='btnQuit'){ sendCtrl({kind:'quit'}); hardResetToSetup(); }
-  /* click su cornice/specchio → upload (solo server) */
-  else if(id==='frameWrap' || id==='specchio'){ if(isServer) $('fileSpec').click(); }
-  else if(id==='fbSend'){ if(!isServer && awaitingFeedback){ const val=$('fbSelect').value; const color=FB_COLORS[fbIndex]||FB_COLORS[3]; sendCtrl({kind:'fb', val, color}); awaitingFeedback=false; toggleFeedback(false); } }
-});
-document.addEventListener('change', ev=>{
-  if(ev.target?.id==='fileSpec' && isServer){
-    const f=ev.target.files?.[0]; if(!f) return;
-    fileToDataUrl(f).then(u=>{ setSpecchio(u); sendCtrl({kind:'spec',dataUrl:u}); ev.target.value=''; awaitingFeedback=false; });
-  }else if(ev.target?.name==='role'){ applySetupRoleUI(); }
-});
-document.addEventListener('keydown', ev=>{ if(ev.key==='Enter' && ev.target?.id==='text'){ ev.preventDefault(); sendMessage(); } });
 
-/* feedback UI */
-function buildSwatches(){
-  const box=$('fbSwatches'); if(!box) return; box.innerHTML='';
-  FB_COLORS.forEach((c,i)=>{ const s=document.createElement('div'); s.className='swatch'+(i===fbIndex?' sel':''); s.style.background=c; s.title=`Intensità ${i+1}/7`; s.onclick=()=>{ fbIndex=i; buildSwatches(); }; box.appendChild(s); });
-}
-function toggleFeedback(show){
-  const dock=$('feedbackDock'), ctrls=$('fbControls'), pop=$('serverPop');
-  if(isServer){
-    ctrls.style.display='none';
-    if(show) { dock.style.display='flex'; pop.style.display='block'; }
-    else     { pop.style.display='none'; if(!awaitingFeedback) dock.style.display='none'; }
-  }else{
-    pop.style.display='none';
-    dock.style.display = show ? 'flex' : 'none';
-    ctrls.style.display = show ? 'flex' : 'none';
+  // Signaling via ntfy.sh (SSE subscribe + POST publish)
+  let sse; function subscribeSSE(tpc){
+    if (sse) sse.close();
+    sse = new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
+    sse.onopen = () => { $('connHint').textContent = 'Collegato al signaling.'; };
+    sse.onerror = () => { $('connHint').textContent = 'Errore signaling (ritento)…'; };
+    sse.onmessage = async (ev) => {
+      try{
+        const envelope = JSON.parse(ev.data);
+        if (!envelope || typeof envelope.message !== 'string') return;
+        const msg = JSON.parse(envelope.message);
+        if (!msg || msg.from === state.selfId) return;
+        await handleSignal(msg);
+      }catch{ /* ignore */ }
+    };
   }
-}
-function serverPopup(text,color){
-  const dock=$('feedbackDock'), pop=$('serverPop');
-  pop.textContent='reazione: '+text;
-  pop.style.borderLeftColor=color||FB_COLORS[3];
-  dock.style.display='flex'; pop.style.display='block';
-  clearTimeout(pop._tm); pop._tm=setTimeout(()=>{ pop.style.display='none'; dock.style.display='none'; }, 6000);
-}
+  async function publish(obj){
+    if (!state.roomCode) return;
+    const body = JSON.stringify({ ...obj, from: state.selfId });
+    try{ await fetch(`${SIGNAL_BASE}/${topic(state.roomCode)}`, { method:'POST', body }); }catch{}
+  }
+  async function handleSignal(msg){
+    if (msg.t === 'offer'){
+      await state.pc.setRemoteDescription(msg.sdp);
+      const answer = await state.pc.createAnswer();
+      await state.pc.setLocalDescription(answer);
+      await publish({ t:'answer', sdp: state.pc.localDescription });
+    } else if (msg.t === 'answer'){
+      await state.pc.setRemoteDescription(msg.sdp);
+    } else if (msg.t === 'candidate'){
+      try{ await state.pc.addIceCandidate(msg.candidate); }catch{}
+    }
+  }
 
-/* helpers */
-function afterEnterMain(newSession){
-  labelNames(); ensureFrame(); buildSwatches(); toggleFeedback(false);
-  if(newSession){ $('colClient').innerHTML=''; $('colServer').innerHTML=''; setSpecchio(null); history=[]; }
-}
-function applySetupRoleUI(){
-  const roleEl=document.querySelector('input[name="role"]:checked'); const srv=!roleEl || roleEl.value==='server';
-  const room=$('room'), paste=$('btnPaste'), roomCol=$('roomCol');
-  if(srv){ room.disabled=true; room.placeholder='(non necessario)'; room.value=''; paste.style.display='none'; roomCol.style.opacity='0.6'; }
-  else   { room.disabled=false; room.placeholder='Es. P2P-AB123'; paste.style.display=''; roomCol.style.opacity='1'; }
-}
-function startSession(){ setStatus('preparazione…'); hideBanner(); historyEnabled=true; setupPeer(); openSSE(currentTopic); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); setStatus('in attesa handshake…'); }
-function sendMessage(){ const t=$('text').value; if(!t) return; const side=isServer?'server':'client'; sendText(t); appendMsg(side,t); $('text').value=''; }
+  // Image sending with simple chunking (sequential transfer)
+  async function sendImage(file){
+    if (state.sendingImage) { flashToast('Trasferimento in corso…', '#444'); return; }
+    if (!state.dc || state.dc.readyState !== 'open') { flashToast('Canale non aperto', '#444'); return; }
+    const ab = await file.arrayBuffer();
+    const id = Math.random().toString(36).slice(2);
+    sendJson({ t:'image-begin', id, size: ab.byteLength, type: file.type || 'image/jpeg' });
+    state.sendingImage = true;
+    const CHUNK = 60 * 1024; // 60KB chunks
+    for (let off=0; off<ab.byteLength; off+=CHUNK){
+      const slice = ab.slice(off, Math.min(off+CHUNK, ab.byteLength));
+      state.dc.send(slice);
+      await wait(2); // yield to avoid congestion
+    }
+    state.sendingImage = false;
+    flashToast('Immagine inviata', '#2a7');
+    // show locally too
+    mirror.src = URL.createObjectURL(new Blob([ab],{type:file.type}));
+  }
+  function sendJson(o){ state.dc && state.dc.readyState==='open' && state.dc.send(JSON.stringify(o)); }
+  function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
 
-/* auto-join + net */
-(()=>{ const url=new URL(location.href); const code=(url.searchParams.get('code')||'').trim().toUpperCase(); const join=(url.searchParams.get('join')==='1'); if(code){ $('room').value=code; if(join){ const r=document.querySelector('input[name="role"][value="client"]'); if(r) r.checked=true; } } applySetupRoleUI(); })();
-window.addEventListener('offline', ()=>showBanner('Sei offline. Verifica la connessione.','warn'));
-window.addEventListener('online',  ()=>{ hideBanner(); if(currentTopic) openSSE(currentTopic); });
-
-})(); // fine IIFE
+  // Auto join from URL
+  (function autoJoin(){
+    const url = new URL(location.href);
+    const code = (url.searchParams.get('code')||'').trim().toUpperCase();
+    const join = url.searchParams.get('join') === '1';
+    if (code){ $('joinCode').value = code; if (join){ state.isOfferer=false; state.roomCode=code; $('codeBox').textContent=code; start(); } }
+  })();
+})();
 </script>
+</body>
+</html>
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P2P Chat v0.5 — single file</title>
+<style>
+  :root{
+    --w:512px; --h:800px; --gap:.5rem; --pane-bg:#000; --ink:#eaeaea; --muted:#a7a7a7;
+    --accent:#9b87f5; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --bg:#0a0a0a;
+  }
+  html,body{height:100%;}
+  body{margin:0; background:#111; color:var(--ink); font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; display:grid; place-items:center;}
+  /* App shell */
+  .app{width:var(--w); height:var(--h); background:var(--pane-bg); position:relative; box-shadow:0 8px 40px rgba(0,0,0,.5); border:1px solid #222; overflow:hidden;}
+  header{display:flex; align-items:center; justify-content:space-between; padding:.6rem .8rem; background:#0f0f0f; border-bottom:1px solid #1c1c1c;}
+  header .title{font-weight:700; letter-spacing:.2px;}
+  header .version{font-size:.8rem; color:var(--muted)}
+  .row{display:flex; gap:.4rem; align-items:center;}
+  select, input[type=text], button, .chip{background:#121212; color:var(--ink); border:1px solid #2b2b2b; border-radius:.45rem; padding:.45rem .55rem;}
+  input[type=text]{width:150px;}
+  button{cursor:pointer}
+  button:disabled{opacity:.5; cursor:not-allowed}
+  .pill{padding:.3rem .5rem; border-radius:999px; font-size:.75rem;}
+  .muted{color:var(--muted)}
+  .hint{font-size:.75rem; color:#c9c9c9}
+
+  /* Canvas area */
+  .stage{position:relative; width:100%; aspect-ratio:1/1; background:#000;}
+  .stage-inner{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:420px; height:420px;}
+  .mirror{position:absolute; inset:0; display:grid; place-items:center;}
+  .mirror img{width:100%; height:100%; object-fit:cover; border-radius:.2rem;}
+  .frame{position:absolute; inset:0; pointer-events:none;}
+  .frame img{width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 2px 10px rgba(0,0,0,.6));}
+  .frameHotspot{position:absolute; inset:0; cursor:pointer;}
+
+  /* Dock under the frame (client reactions) */
+  .dock{display:none; gap:.5rem; align-items:center; padding:.6rem .7rem; border-top:1px solid #1f1f1f; background:#0c0c0c;}
+  .dock.show{display:flex}
+  .colors{display:flex; gap:.25rem}
+  .sw{width:16px; height:16px; border-radius:3px; border:1px solid #2b2b2b; cursor:pointer; outline:1px solid transparent}
+  .sw.sel{outline:1px solid #fff}
+  .toast{position:absolute; left:50%; top:6px; transform:translateX(-50%); background:#0d0d0d; padding:.5rem .7rem; border:2px solid #444; border-radius:.6rem; box-shadow:0 6px 30px rgba(0,0,0,.55); opacity:0; transition:opacity .2s ease}
+  .toast.show{opacity:1}
+
+  /* Connection panel */
+  .connect{display:grid; grid-template-columns:1fr; gap:.5rem; padding:.6rem .8rem; border-bottom:1px solid #1c1c1c;}
+  .connect .row{flex-wrap:wrap}
+  .codebox{font-weight:700; letter-spacing:.05em; padding:.2rem .45rem; border:1px dashed #3a3a3a; border-radius:.35rem}
+  .status{font-size:.9rem; color:#c9c9c9}
+
+  /* Chat area */
+  .chat{display:grid; grid-template-rows:auto 1fr; height:calc(100% - 420px - 136px);}
+  .chatHeader{display:flex; justify-content:space-between; align-items:center; padding:.4rem .6rem; border-top:1px solid #1c1c1c;}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:.4rem; padding:.3rem .6rem .6rem; overflow:auto}
+  .col{border:1px solid #1e1e1e; border-radius:.5rem; padding:.35rem; min-height:80px}
+  .nick{font-size:.8rem; color:#a9a9a9; margin-bottom:.2rem; display:flex; justify-content:space-between;}
+  .bubble{background:#141414; border:1px solid #242424; padding:.35rem .45rem; border-radius:.45rem; margin:.3rem 0;}
+  .bubble.me{border-color:#2d3f8f}
+  .bubble.peer{border-color:#2d8f3f}
+  .chatInput{display:flex; gap:.4rem; padding:.5rem .6rem; border-top:1px solid #1c1c1c;}
+  .history{display:none; padding:.5rem .6rem; border-top:1px dashed #303030; max-height:140px; overflow:auto}
+  .history.show{display:block}
+
+  .foot{position:absolute; bottom:.4rem; right:.6rem; font-size:.75rem; color:#8a8a8a}
+
+  /* Accessibility helpers */
+  [role=button]{cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app" aria-label="P2P chat app">
+  <header>
+    <div class="title">P2P Chat — <span class="version">v0.5</span></div>
+    <div class="row">
+      <label class="muted" for="roleSel">Ruolo</label>
+      <select id="roleSel" title="Seleziona ruolo">
+        <option value="server">SERVER</option>
+        <option value="client">CLIENT</option>
+      </select>
+      <span class="pill" id="status" aria-live="polite">offline</span>
+    </div>
+  </header>
+
+  <!-- Connection controls -->
+  <section class="connect" aria-label="Connessione">
+    <div class="row">
+      <button id="createBtn">Crea chat</button>
+      <input id="joinCode" type="text" inputmode="verbatim" placeholder="Inserisci codice" maxlength="24">
+      <button id="joinBtn">Entra</button>
+      <span class="codebox" id="codeBox">—</span>
+    </div>
+    <div class="row">
+      <input id="inviteLink" type="text" readonly placeholder="Link invito" style="width:100%">
+      <button id="copyBtn" title="Copia link invito">Copia</button>
+    </div>
+    <div class="status" id="connHint">Stato: in attesa</div>
+  </section>
+
+  <!-- Square stage with frame/mirror -->
+  <section class="stage" aria-label="Specchio e cornice">
+    <div class="stage-inner">
+      <div class="mirror" id="mirrorBox" aria-live="polite">
+        <img id="mirror" alt="Immagine nello specchio" src=""/>
+      </div>
+      <div class="frame">
+        <img alt="Cornice" id="frameImg" src=""/>
+      </div>
+      <div class="frameHotspot" id="frameHotspot" title="Clic per cambiare immagine (solo SERVER)"></div>
+      <div class="toast" id="toast">reazione</div>
+    </div>
+  </section>
+
+  <!-- Reaction dock (client only, appears when a new image arrives) -->
+  <div class="dock" id="dock" aria-label="Reazione all'immagine">
+    <label for="reactionSel" class="muted">Feedback</label>
+    <select id="reactionSel" title="Scegli reazione">
+      <option>AIUTO!</option>
+      <option>BELLISSIMA</option>
+      <option>NE' CALDO NE' FREDDO</option>
+      <option>NORMALE</option>
+      <option>DA BRIVIDI!</option>
+      <option>NO GRAZIE</option>
+      <option>PAURA!</option>
+      <option>SORPRESA!</option>
+      <option>IMBARAZZO</option>
+    </select>
+    <span class="muted">Intensità</span>
+    <div class="colors" id="colors"></div>
+    <button id="sendReact">Invia</button>
+  </div>
+
+  <!-- Chat -->
+  <section class="chat" aria-label="Chat">
+    <div class="chatHeader">
+      <div class="row">
+        <label class="muted" for="nickMe">Nickname</label>
+        <input id="nickMe" type="text" placeholder="Il tuo nome" value="Anon">
+        <label class="muted" for="nickPeer">Peer</label>
+        <input id="nickPeer" type="text" placeholder="Nome peer" value="Peer">
+      </div>
+      <div class="row">
+        <button id="toggleHist" class="chip">STORIA</button>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="col" id="colMe">
+        <div class="nick"><span id="nickMeLbl">Me</span><span class="muted">ultimi 3</span></div>
+        <div class="stack" id="meStack"></div>
+      </div>
+      <div class="col" id="colPeer">
+        <div class="nick"><span id="nickPeerLbl">Peer</span><span class="muted">ultimi 3</span></div>
+        <div class="stack" id="peerStack"></div>
+      </div>
+    </div>
+    <div class="history" id="history"></div>
+    <div class="chatInput">
+      <input id="text" type="text" placeholder="Scrivi…">
+      <button id="sendBtn" disabled>Invia</button>
+    </div>
+  </section>
+
+  <div class="foot">STUN: stun.l.google.com:19302 · signaling: ntfy.sh</div>
+
+  <input type="file" id="filePicker" accept="image/*" hidden>
+</div>
 
 <script>
-/* cornice al load */
-document.addEventListener('DOMContentLoaded', ()=>{
-  const fw=document.getElementById('frameWrap');
-  if(fw && !document.getElementById('specchio')){
-    fw.style.backgroundImage='url("'+(typeof FRAME_SRC!=='undefined'?FRAME_SRC:'')+'")';
-    const s=document.createElement('div'); s.id='specchio'; fw.appendChild(s);
+(() => {
+  const VERSION = 'v0.5';
+  const STUNS = [{ urls: 'stun:stun.l.google.com:19302' }];
+  const SIGNAL_BASE = 'https://ntfy.sh';
+  const colors = ['#d7d7d7','#c6c1d4','#aea7dc','#958eef','#7d73f3','#6557e6','#800080'];
+  const $ = (id) => document.getElementById(id);
+
+  const state = {
+    role: 'server',
+    pc: null, dc: null, sse: null,
+    roomCode: null, isOfferer: false,
+    selfId: crypto.getRandomValues(new Uint32Array(1))[0].toString(16),
+    sendingImage: false,
+    recv: null, // {id,size,type,got,buffers:[]}
+    history: [], meMsgs: [], peerMsgs: []
+  };
+
+  // Frame (with cache-busting)
+  const frameUrl = `https://massimagnus.github.io/FHS-chat/cornice.png?v=${encodeURIComponent(VERSION)}`;
+  $('frameImg').src = frameUrl;
+
+  // Role selection
+  $('roleSel').addEventListener('change', (e) => {
+    state.role = e.target.value;
+    // Only server can change image; hint cursor accordingly
+    $('frameHotspot').style.cursor = state.role === 'server' ? 'pointer' : 'not-allowed';
+  });
+
+  // Connection helpers
+  function setStatus(t){ $('status').textContent = t; }
+  function topic(code){ return `p2pchat-${code}`; }
+  function genCode(){ return 'P2P-' + Math.random().toString(36).slice(2,7).toUpperCase(); }
+  function currentBaseURL(){ const u=new URL(location.href); return `${u.origin}${u.pathname}`; }
+  function makeInviteLink(code){ const u=new URL(currentBaseURL()); u.searchParams.set('code',code); u.searchParams.set('join','1'); return u.toString(); }
+
+  // UI bits
+  const meStack = $('meStack');
+  const peerStack = $('peerStack');
+  const historyEl = $('history');
+  const mirror = $('mirror');
+  const dock = $('dock');
+  const toast = $('toast');
+
+  function pushMsg(kind, text){
+    const time = new Date().toLocaleTimeString();
+    state.history.unshift({time, who:kind, text}); // newest first
+    if (kind === 'me'){ state.meMsgs.unshift({time,text}); trimStacks(); renderStacks(); }
+    else if (kind === 'peer'){ state.peerMsgs.unshift({time,text}); trimStacks(); renderStacks(); }
+    renderHistory();
   }
-});
+  function trimStacks(){ state.meMsgs = state.meMsgs.slice(0,3); state.peerMsgs = state.peerMsgs.slice(0,3); }
+  function bubble(html, cls){ const d=document.createElement('div'); d.className = `bubble ${cls}`; d.innerHTML = html; return d; }
+  function renderStacks(){
+    meStack.innerHTML = ''; peerStack.innerHTML='';
+    state.meMsgs.forEach(m => meStack.appendChild(bubble(`<div>${escapeHtml(m.text)}</div><div class="hint">${m.time}</div>`, 'me')));
+    state.peerMsgs.forEach(m => peerStack.appendChild(bubble(`<div>${escapeHtml(m.text)}</div><div class="hint">${m.time}</div>`, 'peer')));
+  }
+  function renderHistory(){ historyEl.innerHTML = state.history.map(e => `<div class="hint">[${e.time}] <b>${e.who}</b> — ${escapeHtml(e.text)}</div>`).join(''); }
+  function escapeHtml(s){ return s.replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\\':'\\'}[c])); }
+
+  // Reaction dock colors
+  (function initColors(){
+    const cWrap = $('colors');
+    colors.forEach((c,idx) => {
+      const sw = document.createElement('div'); sw.className='sw'; sw.style.background=c; sw.setAttribute('data-i',String(idx));
+      sw.addEventListener('click', () => {
+        [...cWrap.children].forEach(x=>x.classList.remove('sel')); sw.classList.add('sel'); cWrap.setAttribute('data-sel', String(idx));
+      });
+      if(idx===0){ sw.classList.add('sel'); cWrap.setAttribute('data-sel','0'); }
+      cWrap.appendChild(sw);
+    });
+  })();
+
+  // STAGE interactions
+  const picker = $('filePicker');
+  $('frameHotspot').addEventListener('click', () => {
+    if (state.role !== 'server') { flashToast("Solo il SERVER può cambiare lo specchio", '#3a3a3a'); return; }
+    if (!state.dc || state.dc.readyState !== 'open'){ flashToast('Non connesso', '#444'); return; }
+    picker.click();
+  });
+  picker.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if(!f) return;
+    await sendImage(f);
+  });
+
+  // Toast
+  let toastTimer=null; function flashToast(msg, color){
+    toast.textContent = msg; toast.style.borderColor = color || '#444'; toast.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=> toast.classList.remove('show'), 6000);
+  }
+
+  // Reaction sending (client)
+  $('sendReact').addEventListener('click', () => {
+    if (!state.dc || state.dc.readyState !== 'open') return;
+    const tag = $('reactionSel').value; const idx = Number($('colors').getAttribute('data-sel')||'0');
+    sendJson({t:'reaction', tag, idx});
+  });
+
+  // Chat
+  $('sendBtn').addEventListener('click', () => {
+    const t = $('text').value.trim(); if(!t || !state.dc || state.dc.readyState!=='open') return;
+    state.dc.send(t); pushMsg('me', t); $('text').value='';
+  });
+  $('text').addEventListener('keydown', e => { if(e.key==='Enter') $('sendBtn').click(); });
+  $('toggleHist').addEventListener('click', () => { historyEl.classList.toggle('show'); });
+  $('nickMe').addEventListener('input', () => { $('nickMeLbl').textContent = $('nickMe').value || 'Me'; });
+  $('nickPeer').addEventListener('input', () => { $('nickPeerLbl').textContent = $('nickPeer').value || 'Peer'; });
+
+  // Connect buttons
+  $('createBtn').addEventListener('click', async () => { await createRoom(); });
+  $('joinBtn').addEventListener('click', async () => {
+    const code = $('joinCode').value.trim().toUpperCase(); if (!code) return;
+    await joinRoom(code);
+  });
+  $('copyBtn').addEventListener('click', async () => {
+    if(!$('inviteLink').value) return;
+    try{ await navigator.clipboard.writeText($('inviteLink').value); flashToast('Link copiato', '#3355ff'); }catch{ flashToast('Copia non riuscita', '#444'); }
+  });
+
+  // WebRTC
+  async function createRoom(){
+    state.roomCode = genCode(); $('codeBox').textContent = state.roomCode; state.isOfferer = true;
+    const link = makeInviteLink(state.roomCode); $('inviteLink').value = link; $('connHint').textContent = 'Condividi il link invito con il peer.';
+    await start();
+  }
+  async function joinRoom(code){
+    state.roomCode = code; $('codeBox').textContent = code; state.isOfferer = false;
+    $('inviteLink').value = makeInviteLink(code); $('connHint').textContent = 'Entrato nella stanza. Attendo handshake…';
+    await start();
+  }
+
+  async function start(){
+    setStatus('preparazione…');
+    setupPeer();
+    subscribeSSE(topic(state.roomCode));
+    if (state.isOfferer){
+      const offer = await state.pc.createOffer();
+      await state.pc.setLocalDescription(offer);
+      await publish({ t:'offer', sdp: state.pc.localDescription });
+    }
+    setStatus('in attesa handshake…');
+  }
+
+  function setupPeer(){
+    state.pc = new RTCPeerConnection({ iceServers: STUNS });
+    if (state.isOfferer){
+      state.dc = state.pc.createDataChannel('chat');
+      wireDC(state.dc);
+    } else {
+      state.pc.ondatachannel = (ev) => { state.dc = ev.channel; wireDC(state.dc); };
+    }
+    state.pc.onicecandidate = (ev) => { if (ev.candidate) publish({ t:'candidate', candidate: ev.candidate }); };
+    state.pc.onconnectionstatechange = () => {
+      const cs = state.pc.connectionState;
+      if (cs === 'connected'){ setStatus('P2P connesso'); $('sendBtn').disabled=false; flashToast('Chat pronta', '#2a7'); }
+      else if (cs === 'failed' || cs === 'disconnected'){ setStatus('connessione persa'); $('sendBtn').disabled=true; }
+    };
+  }
+
+  function wireDC(ch){
+    ch.binaryType = 'arraybuffer';
+    ch.onopen = () => { pushMsg('system', 'Canale aperto'); };
+    ch.onclose = () => { pushMsg('system', 'Canale chiuso'); };
+    ch.onmessage = (ev) => {
+      if (typeof ev.data === 'string') handleText(ev.data); else handleBinary(ev.data);
+    };
+  }
+
+  async function handleText(s){
+    try{
+      const msg = JSON.parse(s);
+      if (msg.t === 'offer' || msg.t === 'answer' || msg.t === 'candidate'){ /* signaling arrives via SSE only */ return; }
+      if (msg.t === 'reaction'){
+        const color = colors[(msg.idx|0) % colors.length];
+        flashToast(`reazione: ${msg.tag}`, color);
+        return;
+      }
+      if (msg.t === 'image-begin'){
+        state.recv = { id: msg.id, size: msg.size|0, type: msg.type||'image/jpeg', got:0, buffers:[] };
+        if (state.role === 'client') dock.classList.add('show');
+        return;
+      }
+    }catch{ /* Not JSON: treat as chat */ }
+    // Plain chat text
+    pushMsg('peer', s);
+  }
+
+  function handleBinary(buf){
+    if (!state.recv) return; // unexpected
+    state.recv.buffers.push(buf); state.recv.got += buf.byteLength;
+    if (state.recv.got >= state.recv.size){
+      const blob = new Blob(state.recv.buffers, {type: state.recv.type});
+      const url = URL.createObjectURL(blob);
+      mirror.src = url;
+      state.recv = null;
+    }
+  }
+
+  // Signaling via ntfy.sh (SSE subscribe + POST publish)
+  let sse; function subscribeSSE(tpc){
+    if (sse) sse.close();
+    sse = new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
+    sse.onopen = () => { $('connHint').textContent = 'Collegato al signaling.'; };
+    sse.onerror = () => { $('connHint').textContent = 'Errore signaling (ritento)…'; };
+    sse.onmessage = async (ev) => {
+      try{
+        const envelope = JSON.parse(ev.data);
+        if (!envelope || typeof envelope.message !== 'string') return;
+        const msg = JSON.parse(envelope.message);
+        if (!msg || msg.from === state.selfId) return;
+        await handleSignal(msg);
+      }catch{ /* ignore */ }
+    };
+  }
+  async function publish(obj){
+    if (!state.roomCode) return;
+    const body = JSON.stringify({ ...obj, from: state.selfId });
+    try{ await fetch(`${SIGNAL_BASE}/${topic(state.roomCode)}`, { method:'POST', body }); }catch{}
+  }
+  async function handleSignal(msg){
+    if (msg.t === 'offer'){
+      await state.pc.setRemoteDescription(msg.sdp);
+      const answer = await state.pc.createAnswer();
+      await state.pc.setLocalDescription(answer);
+      await publish({ t:'answer', sdp: state.pc.localDescription });
+    } else if (msg.t === 'answer'){
+      await state.pc.setRemoteDescription(msg.sdp);
+    } else if (msg.t === 'candidate'){
+      try{ await state.pc.addIceCandidate(msg.candidate); }catch{}
+    }
+  }
+
+  // Image sending with simple chunking (sequential transfer)
+  async function sendImage(file){
+    if (state.sendingImage) { flashToast('Trasferimento in corso…', '#444'); return; }
+    if (!state.dc || state.dc.readyState !== 'open') { flashToast('Canale non aperto', '#444'); return; }
+    const ab = await file.arrayBuffer();
+    const id = Math.random().toString(36).slice(2);
+    sendJson({ t:'image-begin', id, size: ab.byteLength, type: file.type || 'image/jpeg' });
+    state.sendingImage = true;
+    const CHUNK = 60 * 1024; // 60KB chunks
+    for (let off=0; off<ab.byteLength; off+=CHUNK){
+      const slice = ab.slice(off, Math.min(off+CHUNK, ab.byteLength));
+      state.dc.send(slice);
+      await wait(2); // yield to avoid congestion
+    }
+    state.sendingImage = false;
+    flashToast('Immagine inviata', '#2a7');
+    // show locally too
+    mirror.src = URL.createObjectURL(new Blob([ab],{type:file.type}));
+  }
+  function sendJson(o){ state.dc && state.dc.readyState==='open' && state.dc.send(JSON.stringify(o)); }
+  function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+  // Auto join from URL
+  (function autoJoin(){
+    const url = new URL(location.href);
+    const code = (url.searchParams.get('code')||'').trim().toUpperCase();
+    const join = url.searchParams.get('join') === '1';
+    if (code){ $('joinCode').value = code; if (join){ state.isOfferer=false; state.roomCode=code; $('codeBox').textContent=code; start(); } }
+  })();
+})();
 </script>
 </body>
 </html>
