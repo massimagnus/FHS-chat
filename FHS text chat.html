@@ -1,16 +1,13 @@
-<!-- P2P Chat v0.4 — trim messaggi, click su Specchio, feedback con intensità -->
 <!doctype html>
 <html lang="it">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat v0.4 — Specchio & Feedback</title>
+<title>P2P Chat v0.5 — Specchio & Feedback</title>
 <style>
   :root{
     --bg:#000; --bar:#0b1220; --line:#1f2937; --txt:#e5e7eb;
-    --bubble-me:#d4f7c8;      --bubble-me-text:#0f2e13;
-    --bubble-peer:#ffffff;    --bubble-peer-text:#0b1020;
-    --bubble-me-old:#b4d7aa;  --bubble-peer-old:#d9d9d9;
+    --bubble-latest:#ffffff; --bubble-old:#d9d9d9; /* d2b: ultimo bianco, precedenti grigi */
     /* insets area verde della cornice 471×471 */
     --inset-top:16.14%; --inset-right:16.56%; --inset-bottom:16.35%; --inset-left:16.35%;
   }
@@ -28,7 +25,7 @@
   #setup .panel{width:88%;max-width:470px;background:#0b0f1a;border:1px solid #0f172a;border-radius:12px;padding:1rem}
   .row{display:flex;gap:.6rem}.col{flex:1}
   label{display:block;font-size:.9rem;color:#94a3b8;margin:.35rem 0 .2rem}
-  input[type=text]{width:100%;padding:.6rem .7rem;border:1px solid #223;background:#0b0f1a;color:#fff;border-radius:8px}
+  input[type=text], select{width:100%;padding:.6rem .7rem;border:1px solid #223;background:#0b0f1a;color:#fff;border-radius:8px}
   .radio{display:flex;gap:.8rem;align-items:center;margin:.2rem 0 .8rem}
   .radio label{display:flex;align-items:center;gap:.35rem;cursor:pointer;margin:0}
   .hint{color:#9ca3af;font-size:.85rem;margin-top:.4rem}
@@ -36,8 +33,8 @@
   .btn.primary{background:#22c55e;border-color:#16a34a;color:#052e14;font-weight:700}
   .btn:disabled{opacity:.6;cursor:not-allowed}
 
-  /* MAIN layout (8 righe) */
-  #main{grid-template-rows:auto auto auto auto auto 1fr auto; /* header, banner, info, frame, feedback, chat(1fr), composer */}
+  /* MAIN layout */
+  #main{grid-template-rows:auto auto auto auto 1fr auto; position:relative;}
   header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.5rem .7rem;display:flex;align-items:center;justify-content:space-between}
   .status{font-size:.9rem;color:#cbd5e1}
   .pill{display:inline-block;padding:.12rem .45rem;border-radius:999px;background:#1f2937;font-size:.72rem;margin-left:.35rem}
@@ -58,14 +55,16 @@
   #specchio{position:absolute;inset:var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
             background:#10b981;background-position:center;background-size:cover;background-repeat:no-repeat;border-radius:2px}
 
-  /* Feedback dock (sotto cornice, per client e popup server) */
-  #feedbackDock{display:none;align-items:center;justify-content:center;gap:.5rem;padding:.4rem .6rem;background:#0b1220;border-bottom:1px solid var(--line)}
+  /* Feedback dock: ora sovrapposto all'input (m2) */
+  #feedbackDock{display:none;align-items:center;justify-content:center;gap:.5rem;padding:.5rem .6rem;background:#0b1220;border-top:1px solid #334155;
+                position:absolute;left:0;right:0;bottom:58px; z-index:50; box-shadow:0 -10px 30px rgba(0,0,0,.6)}
   #fbControls{display:flex;align-items:center;gap:.45rem}
   #fbControls select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:.35rem .5rem}
   .swatches{display:flex;gap:.25rem}
   .swatch{width:18px;height:18px;border-radius:50%;border:1px solid #ffffff33;cursor:pointer}
   .swatch.sel{outline:2px solid #fff}
   #fbSend{background:#22c55e;border:1px solid #16a34a;color:#052e14;border-radius:8px;padding:.35rem .6rem;font-weight:700}
+  #serverPop{display:none;padding:.35rem .6rem;border-radius:10px;background:#111827;color:#e5e7eb;border-left:6px solid #8b5cf6;font-weight:700}
 
   /* Nomi + CHAT */
   #names{display:grid;grid-template-columns:1fr 1fr;padding:.35rem .6rem .1rem;font-weight:800;color:#cbd5e1;font-size:.95rem}
@@ -75,28 +74,29 @@
   .colList{display:flex;flex-direction:column;gap:.3rem}
   .colList.peer{align-items:flex-start}.colList.me{align-items:flex-end}
   .colList.me .bubble{text-align:right}.colList.peer .bubble{text-align:left}
-  .bubble{display:inline-block;max-width:90%;padding:.5rem .7rem;border-radius:.9rem;
-          box-shadow:0 1px 0 rgba(0,0,0,.35);white-space:pre-wrap;line-height:1.25;transition:filter .25s,opacity .25s,transform .25s}
-  .colList.me   .bubble.last{background:var(--bubble-me);color:var(--bubble-me-text);border:1px solid #a7e3a0;font-size:1rem;transform:scale(1)}
-  .colList.peer .bubble.last{background:var(--bubble-peer);color:var(--bubble-peer-text);border:1px solid #e5e7eb;font-size:1rem;transform:scale(1)}
-  .colList.me   .bubble:not(.last){background:var(--bubble-me-old);color:#122015;border:1px solid #94c789;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
-  .colList.peer .bubble:not(.last){background:var(--bubble-peer-old);color:#1b1b1b;border:1px solid #c9c9c9;opacity:.75;filter:saturate(.7);font-size:.84rem;transform:scale(.95)}
+  .bubble{display:inline-block;max-width:90%;padding:.55rem .8rem;border-radius:.9rem;box-shadow:0 1px 0 rgba(0,0,0,.35);
+          white-space:pre-wrap;line-height:1.25;position:relative}
+  /* d2a: baffo verso l'esterno */
+  .bubble::after{content:""; position:absolute; top:12px; width:0; height:0; border:8px solid transparent}
+  .colList.peer .bubble::after{left:-16px; border-right-color:currentColor; filter:drop-shadow(0 0 0 rgba(0,0,0,0))}
+  .colList.me   .bubble::after{right:-16px; border-left-color:currentColor}
+  /* d2b: ultimo bianco e più grande; precedenti grigi all'80% */
+  .bubble.last{background:var(--bubble-latest); color:#0b1020; border:1px solid #e5e7eb; font-size:1rem; transform:scale(1)}
+  .bubble:not(.last){background:var(--bubble-old); color:#1b1b1b; border:1px solid #c9c9c9; opacity:.8; filter:saturate(.7); font-size:.82rem; transform:scale(.8)}
 
+  /* Composer: full width, no button (d2c + d1) */
   .composer{background:var(--bar);border-top:1px solid var(--line);padding:.5rem .6rem;display:flex;gap:.45rem;align-items:center}
-  #text{flex:1;padding:.55rem .75rem;border:1px solid #475569;border-radius:999px;background:#0f172a;color:#e5e7eb;caret-color:#e5e7eb}
+  #text{flex:1;padding:.7rem .9rem;border:1px solid #475569;border-radius:999px;background:#0f172a;color:#e5e7eb;caret-color:#e5e7eb;font-size:1.05rem}
   #text::placeholder{color:#94a3b8}
-  #sendBtn{padding:.55rem .9rem;border:1px solid #16a34a;background:#22c55e;color:#052e14;border-radius:999px;font-weight:700}
-  #sendBtn:disabled{opacity:.6;cursor:not-allowed}
+  #sendBtn{display:none}
+  #jsErr{position:absolute;left:12px;right:12px;bottom:12px;background:#3a1b1b;color:#fee2e2;padding:.5rem .75rem;border:1px solid #b91c1c;border-radius:8px;display:none;font-weight:700}
 
-  /* STORIA + popup server (riuso del dock) */
+  /* STORIA */
   #history{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center}
   #history .card{width:86%;max-width:480px;max-height:70%;background:#0b0f1a;border:1px solid #334155;border-radius:12px;display:flex;flex-direction:column;color:#e5e7eb}
   #history header{padding:.5rem .7rem;font-weight:700;border-bottom:1px solid #334155;display:flex;justify-content:space-between;align-items:center}
   #history main{padding:.6rem .7rem;overflow:auto}
   .hrow{display:flex;gap:.5rem;margin:.15rem 0}.hwho{width:80px;font-weight:700;color:#9ca3af}.htext{flex:1}
-
-  #serverPop{display:none;padding:.35rem .6rem;border-radius:10px;background:#111827;color:#e5e7eb;border-left:6px solid #8b5cf6;font-weight:700}
-  #jsErr{position:absolute;left:12px;right:12px;bottom:12px;background:#3a1b1b;color:#fee2e2;padding:.5rem .75rem;border:1px solid #b91c1c;border-radius:8px;display:none;font-weight:700}
 </style>
 </head>
 <body>
@@ -104,22 +104,44 @@
 
   <!-- SETUP -->
   <section id="setup" class="screen active">
-    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.4</span></header>
+    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.5</span></header>
     <main>
       <div class="panel">
         <div class="row">
           <div class="col"><label for="nickMe">Il tuo nickname</label><input id="nickMe" type="text" placeholder="Es. Marco" maxlength="24"></div>
           <div class="col" id="roomCol"><label for="room">Codice stanza (solo CLIENT)</label><input id="room" type="text" placeholder="Es. P2P-AB123" maxlength="24"></div>
         </div>
+        <div class="row">
+          <div class="col"><label for="genderSel">Genere</label>
+            <select id="genderSel">
+              <option value="">Seleziona…</option>
+              <option>uomo</option>
+              <option>donna</option>
+              <option>transgender</option>
+              <option>uomo effeminato</option>
+              <option>donna mascolina</option>
+              <option>indeterminato</option>
+            </select></div>
+          <div class="col"><label for="ageSel">Età apparente</label>
+            <select id="ageSel">
+              <option value="">Seleziona…</option>
+              <option>adolescente</option>
+              <option>giovane</option>
+              <option>adulta</option>
+              <option>matura</option>
+              <option>anziana</option>
+              <option>vecchia</option>
+            </select></div>
+        </div>
         <div class="radio">
           <label><input type="radio" name="role" value="server" checked> SERVER (crea)</label>
           <label><input type="radio" name="role" value="client"> CLIENT (entra)</label>
         </div>
         <div class="row">
-          <button id="btnStart" class="btn primary" style="flex:1">Avvia</button>
+          <button id="btnStart" class="btn primary" style="flex:1" disabled>Avvia</button>
           <button id="btnPaste" class="btn" title="Incolla codice dagli appunti">Incolla codice</button>
         </div>
-        <div class="hint">SERVER genera il codice e condivide il link. CLIENT inserisce il codice e si collega.</div>
+        <div class="hint">Compila <b>Nickname + Genere + Età apparente</b>. Se scegli CLIENT, inserisci anche il <b>Codice stanza</b>.</div>
       </div>
     </main>
     <footer style="padding:.65rem .9rem;color:#9ca3af;border-top:1px solid #1f2937">
@@ -130,7 +152,7 @@
   <!-- MAIN -->
   <section id="main" class="screen">
     <header class="bar">
-      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.4</span></div>
+      <div class="status">Stato: <span id="status">offline</span> <span id="pillSSE" class="pill">SSE</span> <span class="pill">v0.5</span></div>
       <div class="controls">
         <button id="btnHistory" class="btn">STORIA</button>
         <button id="btnQuit" class="btn danger">ESCI</button>
@@ -143,7 +165,7 @@
 
     <div id="frameWrap"></div>
 
-    <!-- Dock: client = controlli feedback, server = popup "reazione" -->
+    <!-- Dock: ora sovrapposto al composer -->
     <div id="feedbackDock">
       <div id="fbControls">
         <span style="color:#9ca3af">Feedback:</span>
@@ -184,9 +206,9 @@
 </div>
 
 <script>
-/* ===== v0.4: variabili ===== */
-const APP_VERSION = '0.4';
-const FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.4';
+/* ===== v0.5: variabili ===== */
+const APP_VERSION = '0.5';
+const FRAME_SRC   = 'https://massimagnus.github.io/FHS-chat/cornice.png?v=0.5';
 /* palette 7 step: grigio → porpora */
 const FB_COLORS = ['#e5e7eb','#cfd3d8','#d6d3f0','#c4b5fd','#a78bfa','#8b5cf6','#6d28d9'];
 
@@ -207,6 +229,7 @@ let pendingCandidates=[], remoteSet=false, offerSent=false, answerSent=false;
 let sseBackoff=1000, SSE_BACKOFF_MAX=10000, sseUp=false, switching=false, dcCloseTimer=null, discTimer=null;
 let myNick='Io', peerNick='Peer', history=[], historyEnabled=true;
 let stateSpec=null, awaitingFeedback=false, fbIndex=3;
+let profile={gender:'', age:''};
 
 /* DOM helpers */
 const $=id=>document.getElementById(id);
@@ -288,11 +311,12 @@ function handleIncoming(raw){
     }else if(msg.t==='ctrl'){
       if(msg.kind==='spec' && msg.dataUrl){
         setSpecchio(msg.dataUrl);
-        if(!isServer){ awaitingFeedback=true; toggleFeedback(true); }
+        if(!isServer){ awaitingFeedback=true; toggleFeedback(true); gateComposer(true); }
       }else if(msg.kind==='spec-clear'){
-        setSpecchio(null); if(!isServer) toggleFeedback(false);
+        setSpecchio(null); if(!isServer) { toggleFeedback(false); gateComposer(false); }
       }else if(msg.kind==='fb' && isServer){
         serverPopup(msg.val, msg.color||FB_COLORS[3]);
+        logFeeling(peerNick||'Client', msg.val); // m2a
       }
     }
   }catch{
@@ -307,7 +331,7 @@ function handleSignal(msg){
     if(isServer){ publish({t:'state', spec:stateSpec}); }
     maybeSendOffer();
   } else if(msg.t==='state'){
-    if(!isServer && msg.spec){ setSpecchio(msg.spec); awaitingFeedback=true; toggleFeedback(true); }
+    if(!isServer && msg.spec){ setSpecchio(msg.spec); awaitingFeedback=true; toggleFeedback(true); gateComposer(true); }
   } else if(msg.t==='quit'){
     showBanner('Il peer ha lasciato la sessione.','warn'); setTimeout(()=>hardResetToSetup(),250);
   } else if(msg.t==='switch'){ if(msg.gen) applySwitch(msg.gen); }
@@ -337,14 +361,15 @@ function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.
 /* reset */
 function hardResetToSetup(){ historyEnabled=false; try{ sse?.close(); }catch{} cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
   $('codeBox').textContent='—'; setSpecchio(null); $('colClient').innerHTML=''; $('colServer').innerHTML='';
-  history=[]; awaitingFeedback=false; toggleFeedback(false); setStatus('offline'); setScreen('setup'); }
+  history=[]; awaitingFeedback=false; toggleFeedback(false); gateComposer(false); setStatus('offline'); setScreen('setup'); }
 
 /* UI EVENTS */
 document.addEventListener('click', ev=>{
   const id=ev.target?.id||'';
-  if(id==='btnPaste'){ navigator.clipboard?.readText().then(t=>{$('room').value=(t||'').trim();}); }
+  if(id==='btnPaste'){ navigator.clipboard?.readText().then(t=>{$('room').value=(t||'').trim(); updateStartEnabled();}); }
   else if(id==='btnStart'){
     myNick=($('nickMe').value||'Io').trim();
+    profile.gender=$('genderSel').value; profile.age=$('ageSel').value;
     const roleEl=document.querySelector('input[name="role"]:checked'); isServer=!roleEl || roleEl.value==='server';
     if(isServer){
       roomCode=genCode(); baseTopic=topicBase(roomCode); topicGen='0'; currentTopic=buildTopic(); $('codeBox').textContent=roomCode;
@@ -360,14 +385,28 @@ document.addEventListener('click', ev=>{
   else if(id==='btnQuit'){ sendCtrl({kind:'quit'}); hardResetToSetup(); }
   /* click su cornice/specchio → upload (solo server) */
   else if(id==='frameWrap' || id==='specchio'){ if(isServer) $('fileSpec').click(); }
-  else if(id==='fbSend'){ if(!isServer && awaitingFeedback){ const val=$('fbSelect').value; const color=FB_COLORS[fbIndex]||FB_COLORS[3]; sendCtrl({kind:'fb', val, color}); awaitingFeedback=false; toggleFeedback(false); } }
+  else if(id==='fbSend'){
+    if(!isServer && awaitingFeedback){
+      const val=$('fbSelect').value; const color=FB_COLORS[fbIndex]||FB_COLORS[3];
+      sendCtrl({kind:'fb', val, color}); awaitingFeedback=false; toggleFeedback(false); gateComposer(false);
+      logFeeling(myNick||'Client', val); // m2a (anche lato client)
+    }
+  }
 });
+
 document.addEventListener('change', ev=>{
   if(ev.target?.id==='fileSpec' && isServer){
     const f=ev.target.files?.[0]; if(!f) return;
     fileToDataUrl(f).then(u=>{ setSpecchio(u); sendCtrl({kind:'spec',dataUrl:u}); ev.target.value=''; awaitingFeedback=false; });
-  }else if(ev.target?.name==='role'){ applySetupRoleUI(); }
+  }else if(ev.target?.name==='role'){ applySetupRoleUI(); updateStartEnabled(); }
+  else if(ev.target?.id==='genderSel' || ev.target?.id==='ageSel'){ updateStartEnabled(); }
 });
+
+document.addEventListener('input', ev=>{
+  const id=ev.target?.id||''; if(id==='nickMe' || id==='room'){ updateStartEnabled(); }
+});
+
+/* ENTER per invio (d1) */
 document.addEventListener('keydown', ev=>{ if(ev.key==='Enter' && ev.target?.id==='text'){ ev.preventDefault(); sendMessage(); } });
 
 /* feedback UI */
@@ -397,20 +436,36 @@ function serverPopup(text,color){
 
 /* helpers */
 function afterEnterMain(newSession){
-  labelNames(); ensureFrame(); buildSwatches(); toggleFeedback(false);
+  labelNames(); ensureFrame(); buildSwatches(); toggleFeedback(false); gateComposer(false);
   if(newSession){ $('colClient').innerHTML=''; $('colServer').innerHTML=''; setSpecchio(null); history=[]; }
 }
+function gateComposer(lock){ $('text').disabled = !!lock; }
 function applySetupRoleUI(){
   const roleEl=document.querySelector('input[name="role"]:checked'); const srv=!roleEl || roleEl.value==='server';
   const room=$('room'), paste=$('btnPaste'), roomCol=$('roomCol');
   if(srv){ room.disabled=true; room.placeholder='(non necessario)'; room.value=''; paste.style.display='none'; roomCol.style.opacity='0.6'; }
   else   { room.disabled=false; room.placeholder='Es. P2P-AB123'; paste.style.display=''; roomCol.style.opacity='1'; }
 }
+function updateStartEnabled(){
+  const nickOk=($('nickMe').value||'').trim().length>0;
+  const genOk=$('genderSel').value!==''; const ageOk=$('ageSel').value!=='';
+  const roleEl=document.querySelector('input[name="role"]:checked'); const srv=!roleEl || roleEl.value==='server';
+  const codeOk = srv ? true : (($('room').value||'').trim().length>0);
+  $('btnStart').disabled = !(nickOk && genOk && ageOk && codeOk);
+}
 function startSession(){ setStatus('preparazione…'); hideBanner(); historyEnabled=true; setupPeer(); openSSE(currentTopic); publish({t:'hello',nick:myNick,role:(isServer?'server':'client')}); setStatus('in attesa handshake…'); }
-function sendMessage(){ const t=$('text').value; if(!t) return; const side=isServer?'server':'client'; sendText(t); appendMsg(side,t); $('text').value=''; }
+function sendMessage(){ const t=$('text').value; if(!t || awaitingFeedback) return; const side=isServer?'server':'client'; sendText(t); appendMsg(side,t); $('text').value=''; }
+
+/* log sentimento neutro (m2a) */
+function neutralize(str){
+  const m = str.match(/[aeiouàèéìòóAEIOUÀÈÉÌÒÓ](?!.*[aeiouàèéìòóAEIOUÀÈÉÌÒÓ])/);
+  if(!m) return str+'*';
+  const i = m.index; return str.slice(0,i)+'*'+str.slice(i+1);
+}
+function logFeeling(nick, tag){ if(historyEnabled) history.push({side:'system', text:`(${nick}) si sente ${neutralize(tag)}`}); }
 
 /* auto-join + net */
-(()=>{ const url=new URL(location.href); const code=(url.searchParams.get('code')||'').trim().toUpperCase(); const join=(url.searchParams.get('join')==='1'); if(code){ $('room').value=code; if(join){ const r=document.querySelector('input[name="role"][value="client"]'); if(r) r.checked=true; } } applySetupRoleUI(); })();
+(()=>{ const url=new URL(location.href); const code=(url.searchParams.get('code')||'').trim().toUpperCase(); const join=(url.searchParams.get('join')==='1'); if(code){ $('room').value=code; if(join){ const r=document.querySelector('input[name="role"][value="client"]'); if(r) r.checked=true; } } applySetupRoleUI(); updateStartEnabled(); })();
 window.addEventListener('offline', ()=>showBanner('Sei offline. Verifica la connessione.','warn'));
 window.addEventListener('online',  ()=>{ hideBanner(); if(currentTopic) openSSE(currentTopic); });
 
