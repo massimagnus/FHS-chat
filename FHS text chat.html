@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>P2P Chat v0.5g — FHS</title>
+<title>P2P Chat v0.5h — FHS</title>
 <style>
   :root{
     --bg:#000; --bar:#0b1220; --line:#1f2937; --txt:#e5e7eb;
-    --bubble-me:#d4f7c8;      --bubble-me-text:#0f2e13;   /* SERVER */
-    --bubble-peer:#ffffff;    --bubble-peer-text:#0b1020; /* CLIENT */
+    --bubble-me:#d4f7c8; --bubble-me-text:#0f2e13;   /* SERVER */
+    --bubble-peer:#ffffff; --bubble-peer-text:#0b1020; /* CLIENT */
     --bubble-old:#d9d9d9;
     --inset-top:16.14%; --inset-right:16.56%; --inset-bottom:16.35%; --inset-left:16.35%;
   }
@@ -115,7 +115,7 @@
 
   <!-- SETUP -->
   <section id="setup" class="screen active">
-    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.5g</span></header>
+    <header><strong>Impostazioni</strong><span style="color:#9ca3af">P2P WebRTC — v0.5h</span></header>
     <main>
       <div class="panel">
         <div class="row">
@@ -174,7 +174,7 @@
       <div class="status" id="status">offline</div>
       <div class="controls">
         <span id="pillSSE" class="pill">SSE</span>
-        <span class="pill">v0.5g</span>
+        <span class="pill">v0.5h</span>
         <button id="btnHistory" class="btn">STORIA</button>
         <button id="btnQuit" class="btn danger">ESCI</button>
       </div>
@@ -232,7 +232,7 @@
 </div>
 
 <script>
-const APP_VERSION='0.5g';
+const APP_VERSION='0.5h';
 const FRAME_SRC='https://massimagnus.github.io/FHS-chat/cornice.png?v=0.5';
 const FB_COLORS=['rgb(180,180,180)','rgb(190,160,200)','rgb(205,130,215)','rgb(220,100,230)','rgb(235,70,242)','rgb(245,35,250)','rgb(255,0,255)'];
 const IMG_BASE='images/';
@@ -259,6 +259,7 @@ let specForClient=null, awaitingFeedback=false, fbIndex=3;
 const profile={gender:'',age:''};
 let roomName=null, roomLogged=false;
 let myAvatarUrl=IMG_BASE+'cl01.png', avatarIndex=1;
+let pendingHello=null; // <-- invio hello quando l'SSE è aperto
 
 /* --- DOM helpers --- */
 const $=id=>document.getElementById(id);
@@ -332,7 +333,10 @@ function publish(obj){ if(!roomCode) return Promise.resolve(); const body=JSON.s
 function openSSE(tpc){
   if(sse){ try{sse.close()}catch{} sse=null; }
   sse=new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
-  sse.onopen=()=>{ sseUp=true; sseBackoff=1000; const p=$('pillSSE'); if(p){p.style.background='#14532d';p.style.border='1px solid #16a34a';} hideBanner(); };
+  sse.onopen=()=>{ sseUp=true; sseBackoff=1000; const p=$('pillSSE'); if(p){p.style.background='#14532d';p.style.border='1px solid #16a34a';} hideBanner();
+    // se ho un hello in sospeso, spediscilo ORA
+    if(pendingHello){ publish(pendingHello); pendingHello=null; setStatus('in attesa handshake…'); }
+  };
   sse.onerror=()=>{ if(sseUp) showBanner('Signaling disconnesso. Riconnessione…','warn'); sseUp=false; const p=$('pillSSE'); if(p){p.style.background='#78350f';p.style.border='1px solid #fbbf24';} try{sse.close()}catch{} setTimeout(()=>openSSE(tpc), sseBackoff); sseBackoff=Math.min(SSE_BACKOFF_MAX, Math.round(sseBackoff*1.8)); };
   sse.onmessage=(ev)=>{ try{ const env=JSON.parse(ev.data); if(!env||typeof env.message!=='string') return; const msg=JSON.parse(env.message); if(!msg||msg.from===selfId) return; handleSignal(msg); }catch{} };
 }
@@ -343,6 +347,12 @@ function setupPeer(){
   if(discTimer){ clearTimeout(discTimer); discTimer=null; }
 
   pc=new RTCPeerConnection({iceServers:[...STUNS,...TURNS]});
+
+  // Aiuta su alcuni browser a far partire l'offerta
+  pc.onnegotiationneeded=()=>{ if(isServer) maybeSendOffer(); };
+
+  pc.onicegatheringstatechange=()=>{ setStatus('ICE: '+pc.iceGatheringState+'…'); };
+
   pc.oniceconnectionstatechange=()=>{
     const st=pc.iceConnectionState;
     if(st==='checking') setStatus('connessione…');
@@ -421,7 +431,7 @@ function handleSignal(msg){
   } else if(msg.t==='answer'){
     pc.setRemoteDescription(msg.sdp).then(()=>{ remoteSet=true; for(const c of pendingCandidates){ pc.addIceCandidate(c).catch(()=>{}); } pendingCandidates=[]; setStatus(roomName?'Stanza: '+roomName:'connesso'); });
   } else if(msg.t==='candidate'){
-    if(remoteSet && pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(()=>{}); }
+    if(pc.remoteDescription){ pc.addIceCandidate(msg.candidate).catch(()=>{}); }
     else pendingCandidates.push(msg.candidate);
   }
 }
@@ -439,7 +449,7 @@ function applySwitch(newGen){
   if(isServer){ publish({t:'state', spec:specForClient}); if(roomName) sendCtrl({kind:'room-name', name: roomName}); if(specForClient) sendCtrl({kind:'spec',dataUrl:specForClient}); }
   hideBanner();
 }
-function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch{} try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=null; pc.close(); } }catch{} dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false; }
+function cleanupPeer(){ try{ if(dc){ dc.onopen=dc.onclose=dc.onmessage=null; dc.close(); } }catch{} try{ if(pc){ pc.oniceconnectionstatechange=pc.onconnectionstatechange=pc.ondatachannel=pc.onnegotiationneeded=pc.onicegatheringstatechange=null; pc.close(); } }catch{} dc=null; pc=null; pendingCandidates=[]; remoteSet=false; offerSent=false; answerSent=false; }
 
 /* --- reset --- */
 function hardResetToSetup(){ historyEnabled=false; try{ sse?.close(); }catch{} cleanupPeer(); sse=null; currentTopic=null; baseTopic=null; roomCode=null;
@@ -551,7 +561,6 @@ function updateStartEnabled(){
   btn.disabled = disabled;
   btn.title = disabled ? ('Completa: ' + missing.join(', ')) : 'Pronto a connettersi';
 
-  // Avatar: visibile solo quando nick+genere+età sono completati
   if (!disabled) {
     const allowed=allowedIndices();
     avatarIndex=allowed[0]||1; updateAvatarUI();
@@ -562,11 +571,12 @@ function updateStartEnabled(){
 }
 function startSession(){
   historyEnabled=true;
-  setupPeer(); currentTopic=buildTopic(); openSSE(currentTopic);
-  publish({t:'hello',nick:myNick,role:(isServer?'server':'client'),gender:(profile.gender||'')});
-  if(isServer && roomName){ // verrà consegnato appena DC è open
-    sendCtrl({kind:'room-name', name: roomName});
-  }
+  setupPeer();
+  currentTopic=buildTopic();
+  openSSE(currentTopic);
+  // prepara hello e invialo quando l'SSE è pronto
+  pendingHello = {t:'hello',nick:myNick,role:(isServer?'server':'client'),gender:(profile.gender||'')};
+  if(sseUp){ publish(pendingHello); pendingHello=null; }
   setStatus('in attesa handshake…');
 }
 function sendMessage(){ const t=$('text').value; if(!t) return; const side=isServer?'server':'client'; sendText(t); appendMsg(side,t); $('text').value=''; }
@@ -604,7 +614,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if(code){ $('room').value=code; if(join){ const r=document.querySelector('input[name="role"][value="client"]'); if(r) r.checked=true; } }
   applySetupRoleUI();
   updateStartEnabled();
-  // avatar click
   $('avatarBox').addEventListener('click', nextAvatar);
 });
 
@@ -625,18 +634,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
 });
 
-/* Swatches build dopo DOM pronto */
+/* Swatches fallback (prima dell'init vero) */
 document.addEventListener('DOMContentLoaded', ()=>{
   const FB_COLORS=['rgb(180,180,180)','rgb(190,160,200)','rgb(205,130,215)','rgb(220,100,230)','rgb(235,70,242)','rgb(245,35,250)','rgb(255,0,255)'];
   const box=document.getElementById('fbSwatches'); if(!box) return;
-  // l'istanza reale di buildSwatches è dentro lo scope principale,
-  // ma per sicurezza ricostruiamo qui se non è ancora stata montata.
   if(!box.children.length){
     FB_COLORS.forEach((c,i)=>{
       const s=document.createElement('div');
       s.className='swatch'+(i===3?' sel':'');
       s.style.background=c; s.title=`Intensità ${i+1}/7`;
-      s.onclick=()=>{ /* verrà rimpiazzato dalla vera buildSwatches post-enter */ };
+      s.onclick=()=>{};
       box.appendChild(s);
     });
   }
@@ -644,4 +651,3 @@ document.addEventListener('DOMContentLoaded', ()=>{
 </script>
 </body>
 </html>
-
