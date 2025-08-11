@@ -133,7 +133,10 @@ header.bar{background:var(--bar);border-bottom:1px solid var(--line);padding:.5r
 </div>
 
 <script>
-const APP_VERSION='0.5k', SIGNAL_BASE='https://ntfy.sh', FRAME_SRC='https://massimagnus.github.io/FHS-chat/cornice.png?v=0.5';
+const APP_VERSION='0.5k2', FRAME_SRC='https://massimagnus.github.io/FHS-chat/cornice.png?v=0.5';
+const SIGNAL_BASES=['https://ntfy.sh','https://ntfy.mooo.com','https://ntfy.theres.life'];
+let SIGNAL_BASE=SIGNAL_BASES[0], signalIdx=0, signalFails=0;
+
 const FB_COLORS=['rgb(180,180,180)','rgb(190,160,200)','rgb(205,130,215)','rgb(220,100,230)','rgb(235,70,242)','rgb(245,35,250)','rgb(255,0,255)'];
 const IMG_BASE='images/';
 function $(id){return document.getElementById(id)}
@@ -202,12 +205,44 @@ async function _drainQueue(){
 
 /* ====== SSE ====== */
 function openSSE(tpc){
-  if(sse){try{sse.close()}catch{} sse=null}
-  sse=new EventSource(`${SIGNAL_BASE}/${tpc}/sse`);
-  sse.onopen=()=>{sseUp=true;const p=$('pillSSE');p&&(p.style.background='#14532d',p.style.border='1px solid #16a34a');hideBanner()};
-  sse.onerror=()=>{if(sseUp)showBanner('Signaling disconnesso. Riconnessione…','warn');sseUp=false;const p=$('pillSSE');p&&(p.style.background='#78350f',p.style.border='1px solid #fbbf24');try{sse.close()}catch{} setTimeout(()=>openSSE(tpc),1000)};
-  sse.onmessage=ev=>{try{const env=JSON.parse(ev.data);if(!env||typeof env.message!=='string')return;const msg=JSON.parse(env.message);if(!msg||msg.from===selfId)return;handleSignal(msg)}catch{}};
+  if(sse){ try{sse.close()}catch{} sse=null; }
+
+  const url = `${SIGNAL_BASE}/${tpc}/sse`;
+  sse = new EventSource(url);
+
+  sse.onopen = () => {
+    sseUp = true;
+    signalFails = 0;
+    const p = $('pillSSE'); if(p){ p.style.background='#14532d'; p.style.border='1px solid #16a34a'; }
+    hideBanner();
+  };
+
+  sse.onerror = () => {
+    if (sseUp) showBanner('Signaling disconnesso. Riconnessione…','warn');
+    sseUp = false;
+    const p = $('pillSSE'); if(p){ p.style.background='#78350f'; p.style.border='1px solid #fbbf24'; }
+    try{sse.close()}catch{}
+    // dopo 2 errori consecutivi, passa al prossimo relay pubblico
+    if (++signalFails >= 2){
+      signalIdx = (signalIdx + 1) % SIGNAL_BASES.length;
+      SIGNAL_BASE = SIGNAL_BASES[signalIdx];
+      signalFails = 0;
+      showBanner('Cambio relay di signaling…','warn');
+    }
+    setTimeout(()=>openSSE(tpc), 1000);
+  };
+
+  sse.onmessage = (ev) => {
+    try{
+      const env = JSON.parse(ev.data);
+      if(!env || typeof env.message !== 'string') return;
+      const msg = JSON.parse(env.message);
+      if(!msg || msg.from === selfId) return;
+      handleSignal(msg);
+    }catch{}
+  };
 }
+
 
 /* ====== WebRTC ====== */
 function setupPeer(){
@@ -342,3 +377,4 @@ window.addEventListener('online',()=>{hideBanner();if(currentTopic)openSSE(curre
 </script>
 </body>
 </html>
+
